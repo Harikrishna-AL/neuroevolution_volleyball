@@ -55,20 +55,41 @@ class Genome:
 
             return GenomeData(nodes, conn, input_num * output_num, input_num + output_num, key, matrix)
         
-        def _forward(genome: GenomeData, obs: jnp.ndarray):
-            n_nodes = genome.nodes.shape[0]
-            n_inputs = 12
-            n_outputs = 3
-            node_activations = jnp.zeros(n_nodes)
-            node_activations = node_activations.at[: n_inputs].set(obs)
+        # def _forward(genome: GenomeData, obs: jnp.ndarray):
+        #     n_nodes = genome.nodes.shape[0]
+        #     n_inputs = 12
+        #     n_outputs = 3
+        #     node_activations = jnp.zeros(n_nodes)
+        #     node_activations = node_activations.at[: n_inputs].set(obs)
 
         
-            for i in range(n_inputs, n_nodes):
-                wieghted_sum = jnp.dot(node_activations, genome.matrix[:, i])
-                node_activations = node_activations.at[i].set(jax.nn.relu(wieghted_sum))
+        #     for i in range(n_inputs, n_nodes):
+        #         wieghted_sum = jnp.dot(node_activations, genome.matrix[:, i])
+        #         node_activations = node_activations.at[i].set(jax.nn.relu(wieghted_sum))
+            
+        #     output = node_activations[-n_outputs:]
+        #     return output
+        
+        def _forward(matrix, obs):
+            n_inputs = 12
+            n_outputs = 3
+            
+            # Use jax.lax.stop_gradient to obtain a static value for num_nodes
+            num_nodes = matrix.shape[0]
+            num_nodes_static = jax.lax.stop_gradient(num_nodes)
+
+            # Use the static value for creating the zeros array
+            node_activations = jnp.zeros(num_nodes_static, dtype=jnp.float32)
+            node_activations = node_activations.at[:n_inputs].set(obs)
+
+            for i in range(n_inputs, num_nodes_static):
+                weighted_sum = jnp.dot(node_activations, matrix[:, i])
+                node_activations = node_activations.at[i].set(jax.nn.relu(weighted_sum))
             
             output = node_activations[-n_outputs:]
             return output
+
+
         
         def __add_node(genome: GenomeData):
             node_type_map = {"input": 0, "output": 1, "hidden": 2}
@@ -120,7 +141,20 @@ class Genome:
             matrix = genome.matrix.at[int(node_input[0]), int(node_output[0])].set(weight)
             return GenomeData(genome.nodes, new_connections, genome.innovation_count + 1, genome.node_count, genome.key, matrix), genome.innovation_count + 1
         
-        def _express(genome: GenomeData):
+        def pad_matrix(matrix, max_nodes):
+            # Ensure max_nodes is a concrete integer value
+            max_nodes = int(jax.lax.stop_gradient(max_nodes))  # Convert to a concrete integer
+
+            diff = max_nodes - matrix.shape[0]
+            if diff > 0:
+                new_matrix = jnp.zeros((max_nodes, max_nodes))
+                new_matrix = new_matrix.at[:matrix.shape[0], :matrix.shape[1]].set(matrix)
+                return new_matrix
+            
+            return matrix
+            
+        
+        def _express(genome: GenomeData, max_nodes):
             """Converts genome to weight matrix and activation vector"""
             nodes = genome.nodes
             connections = genome.connections
@@ -136,19 +170,32 @@ class Genome:
                 source, target, weight = jnp.int32(conn[0]), jnp.int32(conn[1]), conn[2]
                 weight_mat = weight_mat.at[source, target].set(weight)
             
-            return GenomeData(nodes, connections, genome.innovation_count, genome.node_count, genome.key, weight_mat)
+            # return GenomeData(nodes, connections, genome.innovation_count, genome.node_count, genome.key, weight_mat)
+            return pad_matrix(weight_mat, max_nodes)
+            # return weight_mat
 
         self._init_pop = jax.jit(jax.vmap(_init_pop))
         self._forward = jax.jit(jax.vmap(_forward))
         self.mutate_add_node = __mutate_add_node
         self.mutate_add_connection = __mutate_add_connection
-        self.express = jax.jit(jax.vmap(_express))
+        # self.express = jax.jit(jax.vmap(_express))
+        self.express = _express
 
     def init_pops(self, keys):
         return self._init_pop(keys)
     
-    def forward_pops(self, pops, obs):
-        return self._forward(pops, obs)
+    def forward_pops(self, matrix, obs):
+        # print(matrix.shape, obs.shape)
+        return self._forward(matrix, obs)
+    
+    def express_all(self, pops, n_nodes):
+        matrices = []
+        
+        max_nodes = jnp.max(n_nodes)
+        
+        for pop in pops:
+            matrices.append(self.express(pop, max_nodes))
+        return matrices
 
     def mutate(self, genome: GenomeData):
         nodes = genome.nodes

@@ -28,17 +28,33 @@ class GeneticEvolution:
         
         return arr_population
 
+    def convert_population_to_genome(self,population):
+        nodes = []
+        connections = []
+        innovation_count = []
+        node_count = []
+        key = []
+        matrix = []
+        for i in range(len(population)):
+            nodes.append(population[i].nodes)
+            connections.append(population[i].connections)
+            innovation_count.append(population[i].innovation_count)
+            node_count.append(population[i].node_count)
+            key.append(population[i].key)
+            matrix.append(population[i].matrix)
+        
+        return GenomeData(jnp.array(nodes), jnp.array(connections), jnp.array(innovation_count), jnp.array(node_count), jnp.array(key), jnp.array(matrix))
 
     def ask(self):
         type_pop = type(self.population)
-        if type_pop == list:
-            length = len(self.population)
-        else:
-            length = self.population.nodes.shape[0]
-        # length = len(self.population)
+        # if type_pop == list:
+        #     length = len(self.population)
+        # else:
+        #     length = self.population.nodes.shape[0]
+        length = len(self.population)
         if length == 0:
             self.population = self.genome.init_pops(self.keys)
-            # self.population = self.convert_population_to_numpy(self.population)
+            self.population = self.convert_population_to_numpy(self.population)
             # print(self.population)
             
         else:
@@ -47,6 +63,7 @@ class GeneticEvolution:
             # self.population = self.speciate()
             self.population = self.evolve()
         
+        # return self.convert_population_to_genome(self.population)
         return self.population
 
     
@@ -56,11 +73,10 @@ class GeneticEvolution:
 
     def rank_population(self):
         # Sort fitnesses in descending order (reverse sort)
-        sorted_indices = jnp.argsort(self.fitnesses)[::-1]
+        # sorted_indices = jnp.argsort(self.fitnesses)[::-1]
 
         # Use the sorted indices to gather the corresponding genomes from the population
-        sorted_population = jax.vmap(lambda idx: jax.tree_util.tree_map(lambda x: x[idx], self.population))(sorted_indices)
-        
+        sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
         return sorted_population
 
     
@@ -110,7 +126,7 @@ class GeneticEvolution:
 
         # Use jax.tree_util.tree_map to extract the top portion of the population
         # new_population = jax.tree_util.tree_map(lambda x: x[:top_n], sorted_population)
-        sorted_population = self.convert_population_to_numpy(sorted_population)
+        # sorted_population = self.convert_population_to_numpy(sorted_population)
         new_population = sorted_population[:top_n]
 
         # Create random keys for parent selection
@@ -177,9 +193,23 @@ class Policy:
     def __init__(self, genome, pops):
         self.genome = genome   #iloveyou
         self.pops = pops
+        self.forward = self._forward
+
+        n_nodes = jnp.zeros((len(self.pops),1))
+        for i in range(len(self.pops)):
+            n_nodes = n_nodes.at[i,0].set(self.pops[i].nodes.shape[0])
+        self.n_nodes = n_nodes
+        self.matrices = jnp.array(self.genome.express_all(self.pops, n_nodes))
+
+
+    def _forward(self, obs):
+        # n_nodes = [g.nodes.shape[0] for g in self.pops]
+        
+        # n_nodes = jnp.array(n_nodes).reshape(-1, 1)
+        # matrices = jnp.array(self.matrices)
+        # print(matrices.shape, obs.shape, n_nodes.shape)
+        return self.genome.forward_pops(self.matrices, obs)
     
-    def forward(self, obs):
-        return self.genome.forward_pops(self.pops, obs)
     
 # obs = jax.random.uniform(jax.random.PRNGKey(0), shape=(100, 12), minval=-1.0, maxval=1.0)
 # policy = Policy(x, pop)
