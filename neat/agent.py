@@ -116,9 +116,10 @@ total_rewards = get_rewards(keys, env, policy, num_envs=100)
 evolver.tell(total_rewards)
 
 pops_new = evolver.ask()
-policy_new = Policy(gen, pops_new)
-total_rewards2 = get_rewards(keys, env, policy, num_envs=100)
+print(pops_new[21].nodes.shape)
+# policy_new = Policy(gen, pops_new)
+# total_rewards2 = get_rewards(keys, env, policy, num_envs=100)
 
 
 print(total_rewards)
-print(total_rewards2)
+# print(total_rewards2)

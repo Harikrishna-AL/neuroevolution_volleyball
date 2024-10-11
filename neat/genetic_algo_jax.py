@@ -21,25 +21,25 @@ class GeneticEvolution:
 
     # Assuming 'population' is a GenomeData object
     def convert_population_to_numpy(self,population):
-        population = []
+        arr_population = []
         for i in range(population.nodes.shape[0]):
-            genome = GenomeData(population.nodes[i], population.connections[i], population.innovation_count[i], population.node_count[i], population.keys[i], population.matrix[i])
-            population.append(genome)
+            genome = GenomeData(population.nodes[i], population.connections[i], population.innovation_count[i], population.node_count[i], population.key[i], population.matrix[i])
+            arr_population.append(genome)
         
-        return population
+        return arr_population
 
 
     def ask(self):
         type_pop = type(self.population)
-        # if type_pop == list:
-        #     length = len(self.population)
-        # else:
-        #     length = self.population.nodes.shape[0]
-        length = len(self.population)
+        if type_pop == list:
+            length = len(self.population)
+        else:
+            length = self.population.nodes.shape[0]
+        # length = len(self.population)
         if length == 0:
             self.population = self.genome.init_pops(self.keys)
-            self.population = self.convert_population_to_numpy(self.population)
-            print(self.population)
+            # self.population = self.convert_population_to_numpy(self.population)
+            # print(self.population)
             
         else:
             self.population = self.rank_population()
@@ -55,10 +55,14 @@ class GeneticEvolution:
         self.fitnesses = rewards
 
     def rank_population(self):
-        # sort the population based on fitness
-        # fitnesses = [self.eval_fitness(genome, env=env) for genome in self.population]
-        sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
+        # Sort fitnesses in descending order (reverse sort)
+        sorted_indices = jnp.argsort(self.fitnesses)[::-1]
+
+        # Use the sorted indices to gather the corresponding genomes from the population
+        sorted_population = jax.vmap(lambda idx: jax.tree_util.tree_map(lambda x: x[idx], self.population))(sorted_indices)
+        
         return sorted_population
+
     
     def run(self, genome, obs):
         # num_batch = len(obs)
@@ -100,21 +104,51 @@ class GeneticEvolution:
 
     #     self.population = new_population
     def evolve(self):
-        # select the top 20% of the population
-        new_population = self.population[:self.population_size // 5]
+        # Select the top 20% of the population based on fitness
+        sorted_population = self.rank_population()
+        top_n = self.population_size // 5
+
+        # Use jax.tree_util.tree_map to extract the top portion of the population
+        # new_population = jax.tree_util.tree_map(lambda x: x[:top_n], sorted_population)
+        sorted_population = self.convert_population_to_numpy(sorted_population)
+        new_population = sorted_population[:top_n]
+
+        # Create random keys for parent selection
+        key = jax.random.PRNGKey(0)
+
         while len(new_population) < self.population_size:
-            parent1 = random.choice(self.population)
-            parent2 = random.choice(self.population)
-            # child1, child2 = self.crossover(parent1, parent2)
+            # Randomly select parents using JAX's random.choice
+            # key, subkey1, subkey2 = jax.random.split(key, 3)
+            # parent1_idx = jax.random.choice(subkey1, jnp.arange(top_n))
+            # parent2_idx = jax.random.choice(subkey2, jnp.arange(top_n))
+            parent1_idx = random.randint(0, top_n-1)
+            parent2_idx = random.randint(0, top_n-1)
+
+            parent1 = sorted_population[parent1_idx]
+            parent2 = sorted_population[parent2_idx]
+
+            # parent1 = jax.tree_util.tree_map(lambda x: x[parent1_idx], sorted_population)
+            # parent2 = jax.tree_util.tree_map(lambda x: x[parent2_idx], sorted_population)
+
+            # Apply crossover or mutation
             if random.random() < self.cross_rate:
-                child, innov = self.genome.crossover(parent1, parent2)
+                # print(parent1.nodes.shape)
+                # print(parent2.nodes.shape)
+                child = self.genome.crossover(parent1, parent2)
             else:
-                child, innov = self.genome.mutate(parent1)
+                child, _ = self.genome.mutate(parent1)
 
-            new_population.extend(child)
+            
+            new_population.append(child)
 
-        self.population = new_population
+            # Concatenate the child into the new population
+            # new_population = jax.tree_util.tree_map(
+            #     lambda x, y: jnp.concatenate([x, y[None]], axis=0), new_population, child
+            # )
+
+        # Return the new evolved population
         return new_population
+
 
     def train(self, env, num_generations):
         for i in range(num_generations):
