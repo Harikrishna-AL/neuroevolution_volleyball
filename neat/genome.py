@@ -86,12 +86,12 @@ class Genome:
                 weighted_sum = jnp.dot(node_activations, matrix[:, i])
                 node_activations = node_activations.at[i].set(jax.nn.relu(weighted_sum))
             
-            output = node_activations[-n_outputs:]
-            return output
+            # output = node_activations[-n_outputs:]
+            return node_activations
 
 
         
-        def __add_node(genome: GenomeData):
+        def __add_node(genome: GenomeData, key):
             node_type_map = {"input": 0, "output": 1, "hidden": 2}
             node_type_numeric = node_type_map["hidden"]
 
@@ -102,36 +102,40 @@ class Genome:
             new_matrix = jnp.zeros((genome.node_count + 1, genome.node_count + 1))
             new_matrix = new_matrix.at[:genome.node_count, :genome.node_count].set(genome.matrix)
             # genome.node_count += 1
-            return new_id, GenomeData(new_nodes, genome.connections, genome.innovation_count, genome.node_count + 1, genome.key, new_matrix)
+            return new_id, GenomeData(new_nodes, genome.connections, genome.innovation_count, genome.node_count + 1, key, new_matrix)
         
-        def __add_connection(genome: GenomeData, in_node, out_node, weight):
+        def __add_connection(genome: GenomeData, in_node, out_node, weight, key):
             new_connection = jnp.array([[in_node, out_node, weight, genome.innovation_count, 1.0]]) 
             new_connections = jnp.concatenate((genome.connections, new_connection), axis=0) 
             # genome.innovation_count += 1
             matrix = genome.matrix.at[int(in_node), int(out_node)].set(weight)
 
-            return genome.innovation_count + 1, GenomeData(genome.nodes, new_connections, genome.innovation_count + 1, genome.node_count, genome.key, matrix)
+            return genome.innovation_count + 1, GenomeData(genome.nodes, new_connections, genome.innovation_count + 1, genome.node_count, key, matrix)
         
         self.add_node = __add_node
         self.add_connection = __add_connection
 
         def __mutate_add_node(genome: GenomeData):
-            connection_to_split = genome.connections[jax.random.randint(genome.key, shape=(), minval=0, maxval=len(genome.connections))]
+            key, subkey = jax.random.split(genome.key)
+            # genome.key = subkey
+            connection_to_split = genome.connections[jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.connections))]
             connection_to_split = connection_to_split.at[4].set(0.0)
 
-            new_node_id, genome = self.add_node(genome)
+            new_node_id, genome = self.add_node(genome, subkey)
 
-            inv_num , genome = self.add_connection(genome, connection_to_split[0], new_node_id, 1.0)
-            inv_num, genome = self.add_connection(genome, new_node_id, connection_to_split[1], connection_to_split[2])
+            inv_num , genome = self.add_connection(genome, connection_to_split[0], new_node_id, 1.0, subkey)
+            inv_num, genome = self.add_connection(genome, new_node_id, connection_to_split[1], connection_to_split[2], subkey)
 
             return genome, inv_num
 
         def __mutate_add_connection(genome: GenomeData, weight_range=(-1.0, 1.0)):
             # Sample two nodes
-            node_input = genome.nodes[jax.random.randint(genome.key, shape=(), minval=0, maxval=len(genome.nodes))]
-            node_output = genome.nodes[jax.random.randint(genome.key, shape=(), minval=0, maxval=len(genome.nodes))]
+            key, subkey = jax.random.split(genome.key)
+            # genome.key = subkey
+            node_input = genome.nodes[jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))]
+            node_output = genome.nodes[jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))]
 
-            weight = jax.random.uniform(genome.key, shape=(), minval=weight_range[0], maxval=weight_range[1])
+            weight = jax.random.uniform(subkey, shape=(), minval=weight_range[0], maxval=weight_range[1])
 
             nodes_are_different = node_input[0] != node_output[0]
 
@@ -139,7 +143,7 @@ class Genome:
             new_connections = jnp.concatenate((genome.connections, new_connection), axis=0)
 
             matrix = genome.matrix.at[int(node_input[0]), int(node_output[0])].set(weight)
-            return GenomeData(genome.nodes, new_connections, genome.innovation_count + 1, genome.node_count, genome.key, matrix), genome.innovation_count + 1
+            return GenomeData(genome.nodes, new_connections, genome.innovation_count + 1, genome.node_count, subkey, matrix), genome.innovation_count + 1
         
         def pad_matrix(matrix, max_nodes):
             # Ensure max_nodes is a concrete integer value
@@ -169,8 +173,11 @@ class Genome:
                 # if conn[4]:
                 source, target, weight = jnp.int32(conn[0]), jnp.int32(conn[1]), conn[2]
                 weight_mat = weight_mat.at[source, target].set(weight)
-            
-            # return GenomeData(nodes, connections, genome.innovation_count, genome.node_count, genome.key, weight_mat)
+
+            # get topological order and apply it to the matrix
+            sorted_order = jnp.int32(self.topological_sort(nodes))
+            weight_mat = weight_mat[sorted_order][:, sorted_order]
+
             return pad_matrix(weight_mat, max_nodes)
             # return weight_mat
 
@@ -202,23 +209,28 @@ class Genome:
         connections = genome.connections
         n_conn = connections.shape[0]
 
+        key, subkey = jax.random.split(genome.key)
+        # genome.key = subkey
+
         disabled = jnp.where(connections[:, 4] == 0.0)[0]
-        reenable = jax.random.bernoulli(jax.random.PRNGKey(0), p=self.config['prob_enable'], shape=(disabled.shape[0],))
+        reenable = jax.random.bernoulli(subkey, p=self.config['prob_enable'], shape=(disabled.shape[0],))
         connections = connections.at[disabled, 4].set(reenable)
 
-        mutated_weights = jax.random.bernoulli(jax.random.PRNGKey(0), p=self.config['prob_weight_mut'], shape=(n_conn,))
-        weights_change = jax.random.uniform(jax.random.PRNGKey(0), shape=(n_conn,), minval=-1.0, maxval=1.0) * mutated_weights
+        mutated_weights = jax.random.bernoulli(subkey, p=self.config['prob_weight_mut'], shape=(n_conn,))
+        weights_change = jax.random.uniform(subkey, shape=(n_conn,), minval=-1.0, maxval=1.0) * mutated_weights
         connections = connections.at[:, 2].add(weights_change)
 
         connections = connections.at[:, 2].set(jnp.clip(connections[:, 2], -self.config['clamp_weights'], self.config["clamp_weights"]))
 
-        genome = GenomeData(nodes, connections, genome.innovation_count, genome.node_count, genome.key, genome.matrix)
+        genome = GenomeData(nodes, connections, genome.innovation_count, genome.node_count, subkey, genome.matrix)
 
-        if jax.random.uniform(jax.random.PRNGKey(0), shape=(), minval=0.0, maxval=1.0) < self.config["prob_add_node"] and jnp.any(connections[:, 4] == 1.0):
-            genome, innov = self.mutate_add_node(GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, genome.key, genome.matrix))
+        innov = genome.innovation_count
 
-        if jax.random.uniform(jax.random.PRNGKey(0), shape=(), minval=0.0, maxval=1.0) < self.config["prob_add_connection"]:
-            genome, innov = self.mutate_add_connection(GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, genome.key, genome.matrix))
+        if jax.random.uniform(subkey, shape=(), minval=0.0, maxval=1.0) < self.config["prob_add_node"] and jnp.any(connections[:, 4] == 1.0):
+            genome, innov = self.mutate_add_node(GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, subkey, genome.matrix))
+
+        if jax.random.uniform(subkey, shape=(), minval=0.0, maxval=1.0) < self.config["prob_add_connection"]:
+            genome, innov = self.mutate_add_connection(GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, subkey, genome.matrix))
 
         return genome, innov
     
@@ -228,8 +240,11 @@ class Genome:
         # child = GenomeData(parent1.nodes.copy(), parent1.connections.copy(), parent1.innovation_count, parent1.node_count, parent1.key, parent1.matrix.copy())
         matching, g1, g2 = jnp.intersect1d(aConn, bConn, return_indices=True)
 
+        key, subkey = jax.random.split(parent1.key)
+        # parent1.key = subkey
+
         bProb = 0.5
-        bGenes = jax.random.bernoulli(jax.random.PRNGKey(0), p=bProb, shape=(len(matching),))
+        bGenes = jax.random.bernoulli(subkey, p=bProb, shape=(len(matching),))
 
         # child.connections.at[g1[bGenes[0]], 2] = parent2.connections[g2[bGenes[0]], 2]
         cross_connections = parent1.connections.at[g1[bGenes], 2].set(parent2.connections[g2[bGenes], 2])
@@ -238,50 +253,8 @@ class Genome:
         
         # child_matrix = self.express(parent1.nodes.unsqueeze(0), cross_connections.unsqueeze(0))
 
-        return GenomeData(parent1.nodes.copy(), cross_connections, parent1.innovation_count, parent1.node_count, parent1.key, parent1.matrix.copy())
+        return GenomeData(parent1.nodes.copy(), cross_connections, parent1.innovation_count, parent1.node_count, subkey, parent1.matrix.copy())
 
-    # def express(self, nodes, connections):
-    #     """Converts genome to weight matrix and activation vector"""
-    #     n_nodes = nodes.shape[0]
-    #     weight_mat = jnp.zeros((n_nodes, n_nodes))
-
-    #     for conn in connections:
-    #         if conn[4]:
-    #             source, target, weight = int(conn[0]), int(conn[1]), conn[2]
-    #             weight_mat = weight_mat.at[source, target].set(weight)
-        
-    #     return weight_mat
-    
-    # def add_node(self, node_type):
-    #     node_type_map = {"input": 0, "output": 1, "hidden": 2}
-    #     node_type_numeric = node_type_map[node_type]
-
-    #     new_id = self.node_count
-    #     new_node = jnp.array([[new_id, node_type_numeric]])  
-    #     self.nodes = jnp.concatenate((self.nodes, new_node), axis=0) 
-    #     self.node_count += 1
-    #     return new_id
-    
-    # def add_connection(self, in_node, out_node, weight):
-    #     new_connection = jnp.array([[in_node, out_node, weight, self.innovation_count, 1.0]]) 
-    #     self.connections = jnp.concatenate((self.connections, new_connection), axis=0) 
-    #     self.innovation_count += 1
-    #     return self.innovation_count 
-    
-    # def mutate_add_node(self):
-    #     connection_to_split = self.connections[jax.random.randint(jax.random.PRNGKey(0), shape=(), minval=0, maxval=len(self.connections))]
-    #     connection_to_split = connection_to_split.at[-1].set(0.0)
-    #     new_node_id = self.add_node("hidden")
-    #     self.add_connection(connection_to_split[0], new_node_id, 1.0)
-    #     self.add_connection(new_node_id, connection_to_split[1], connection_to_split[2])
-
-    # def mutate_add_connection(self, weight_range=(-1.0, 1.0)):
-    #     node_input = self.nodes[jax.random.randint(jax.random.PRNGKey(0), shape=(), minval=0, maxval=len(self.nodes))]
-    #     node_output = self.nodes[jax.random.randint(jax.random.PRNGKey(0), shape=(), minval=0, maxval=len(self.nodes))]
-
-    #     if node_input[0] != node_output[0]:
-    #         weight = jax.random.uniform(jax.random.PRNGKey(0), shape=(), minval=weight_range[0], maxval=weight_range[1])
-    #         self.add_connection(node_input[0], node_output[0], weight)
 
     def get_weight(self):
         num_nodes = self.nodes.shape[0]
@@ -295,10 +268,10 @@ class Genome:
         
         return weight_mat
     
-    def topological_sort(self):
-        input_nodes = self.nodes[self.nodes[:, 1] == 0][:, 0]
-        output_nodes = self.nodes[self.nodes[:, 1] == 1][:, 0]
-        hidden_nodes = self.nodes[self.nodes[:, 1] == 2][:, 0]
+    def topological_sort(self, nodes):
+        input_nodes = nodes[self.nodes[:, 1] == 0][:, 0]
+        output_nodes = nodes[self.nodes[:, 1] == 1][:, 0]
+        hidden_nodes = nodes[self.nodes[:, 1] == 2][:, 0]
 
         sorted_nodes = jnp.concatenate((input_nodes, hidden_nodes, output_nodes), axis=0)
         return sorted_nodes
@@ -313,32 +286,6 @@ class Genome:
         weight_mat = self.get_weight()
         sorted_weight_mat, sorted_order = self.reorder_weight_matrix(weight_mat)
         return sorted_weight_mat, sorted_order
-   
-    # def forward(self, obs):
-    #     for node_id  in range(self.node_count):
-    #         self.node_values[node_id] = jnp.float32(0.0)
-
-    #     input_nodes = [node[0] for node in self.nodes if node[1] == 0]
-
-    #     for i, node_id in enumerate(input_nodes):
-    #         self.node_values[int(node_id)] = obs[i]
-
-    #     for connection in self.connections:
-    #         in_node, out_node, weight, enabled = int(connection[0]), int(connection[1]), connection[2], connection[4]
-
-    #         if enabled:
-    #             # print(in_node, out_node, weight)
-    #             self.node_values[out_node] += self.node_values[in_node] * weight
-
-    #     for node in self.nodes:
-    #         node_id, node_type = node[0], node[1]
-    #         if node_type == 1 or node_type == 2:
-    #             self.node_values[int(node_id)] = jax.nn.relu(self.node_values[int(node_id)])
-        
-    #     output_nodes = [node[0] for node in self.nodes if node[1] == 1]
-    #     output_values = jnp.array([self.node_values[int(node_id)] for node_id in output_nodes])
-
-    #     return output_values
         
     def forward(self, obs, n_inputs, n_outputs):
         n_nodes = self.nodes.shape[0]
@@ -356,24 +303,6 @@ class Genome:
     # def backward(self, loss):
     #     pass
 
-    
-
-    
-    
-    def init_population(self):
-        # Initialize a simple population
-        input_num = 3
-        output_num = 2
-
-        for _ in range(input_num):
-            self.add_node("input")
-
-        for _ in range(output_num):
-            self.add_node("output")
-
-        for i in range(input_num):
-            for j in range(output_num):
-                self.add_connection(i, j + input_num, random.uniform(-1.0, 1.0))
 
     def visualize(self, nodes: jnp.ndarray, connections: jnp.ndarray):
         import networkx as nx

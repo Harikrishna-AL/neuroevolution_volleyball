@@ -46,11 +46,6 @@ class GeneticEvolution:
         return GenomeData(jnp.array(nodes), jnp.array(connections), jnp.array(innovation_count), jnp.array(node_count), jnp.array(key), jnp.array(matrix))
 
     def ask(self):
-        type_pop = type(self.population)
-        # if type_pop == list:
-        #     length = len(self.population)
-        # else:
-        #     length = self.population.nodes.shape[0]
         length = len(self.population)
         if length == 0:
             self.population = self.genome.init_pops(self.keys)
@@ -63,7 +58,6 @@ class GeneticEvolution:
             # self.population = self.speciate()
             self.population = self.evolve()
         
-        # return self.convert_population_to_genome(self.population)
         return self.population
 
     
@@ -72,21 +66,8 @@ class GeneticEvolution:
         self.fitnesses = rewards
 
     def rank_population(self):
-        # Sort fitnesses in descending order (reverse sort)
-        # sorted_indices = jnp.argsort(self.fitnesses)[::-1]
-
-        # Use the sorted indices to gather the corresponding genomes from the population
         sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
         return sorted_population
-
-    
-    def run(self, genome, obs):
-        # num_batch = len(obs)
-        # for i in range(num_batch):
-        output = genome.forward(obs)
-        
-        return output
-        
 
     def eval_fitness(self,genome, env):
         reward = 0
@@ -105,64 +86,25 @@ class GeneticEvolution:
 
         return total_reward
 
-    # def evolve(self, env):
-    #     fitnesses = [self.eval_fitness(genome, env=env) for genome in self.population]
-    #     sorted_population = [x for _, x in sorted(zip(fitnesses, self.population), key=lambda pair: pair[0], reverse=True)]
-    #     new_population = sorted_population[:self.population_size // 2]
-
-    #     while len(new_population) < self.population_size:
-    #         parent1 = random.choice(sorted_population)
-    #         parent2 = random.choice(sorted_population)
-    #         child1, child2 = self.crossover(parent1, parent2)
-    #         self.mutate(child1)
-    #         self.mutate(child2)
-    #         new_population.extend([child1, child2])
-
-    #     self.population = new_population
     def evolve(self):
-        # Select the top 20% of the population based on fitness
         sorted_population = self.rank_population()
         top_n = self.population_size // 5
-
-        # Use jax.tree_util.tree_map to extract the top portion of the population
-        # new_population = jax.tree_util.tree_map(lambda x: x[:top_n], sorted_population)
-        # sorted_population = self.convert_population_to_numpy(sorted_population)
         new_population = sorted_population[:top_n]
 
-        # Create random keys for parent selection
-        key = jax.random.PRNGKey(0)
-
         while len(new_population) < self.population_size:
-            # Randomly select parents using JAX's random.choice
-            # key, subkey1, subkey2 = jax.random.split(key, 3)
-            # parent1_idx = jax.random.choice(subkey1, jnp.arange(top_n))
-            # parent2_idx = jax.random.choice(subkey2, jnp.arange(top_n))
             parent1_idx = random.randint(0, top_n-1)
             parent2_idx = random.randint(0, top_n-1)
 
             parent1 = sorted_population[parent1_idx]
             parent2 = sorted_population[parent2_idx]
 
-            # parent1 = jax.tree_util.tree_map(lambda x: x[parent1_idx], sorted_population)
-            # parent2 = jax.tree_util.tree_map(lambda x: x[parent2_idx], sorted_population)
-
-            # Apply crossover or mutation
             if random.random() < self.cross_rate:
-                # print(parent1.nodes.shape)
-                # print(parent2.nodes.shape)
                 child = self.genome.crossover(parent1, parent2)
             else:
                 child, _ = self.genome.mutate(parent1)
-
             
             new_population.append(child)
 
-            # Concatenate the child into the new population
-            # new_population = jax.tree_util.tree_map(
-            #     lambda x, y: jnp.concatenate([x, y[None]], axis=0), new_population, child
-            # )
-
-        # Return the new evolved population
         return new_population
 
 
@@ -177,41 +119,27 @@ class GeneticEvolution:
 
         return self.population[5]
 
-# config = {
-#     "prob_enable": 0.5,
-#     "prob_weight_mut": 0.8,
-#     "clamp_weights": 5.0,
-#     "prob_add_node": 0.5,
-#     "prob_add_connection": 0.5
-# }
-# x = Genome(config=config)
-# algo = GeneticEvolution(100, x, 12)
-# pop = algo.ask()
-# print(pop.nodes.shape)
-
 class Policy:
     def __init__(self, genome, pops):
-        self.genome = genome   #iloveyou
+        self.genome = genome  
         self.pops = pops
         self.forward = self._forward
-
         n_nodes = jnp.zeros((len(self.pops),1))
+
         for i in range(len(self.pops)):
             n_nodes = n_nodes.at[i,0].set(self.pops[i].nodes.shape[0])
+
         self.n_nodes = n_nodes
         self.matrices = jnp.array(self.genome.express_all(self.pops, n_nodes))
 
+        def _slice_activation(activations, n_nodes):
+            """Helper function to slice activations based on n_nodes."""
+            start_idx = n_nodes - 3
+            return jax.lax.dynamic_slice(activations, (jnp.int32(start_idx),), (3,))
+
+        self.slice_activation = _slice_activation
 
     def _forward(self, obs):
-        # n_nodes = [g.nodes.shape[0] for g in self.pops]
-        
-        # n_nodes = jnp.array(n_nodes).reshape(-1, 1)
-        # matrices = jnp.array(self.matrices)
-        # print(matrices.shape, obs.shape, n_nodes.shape)
-        return self.genome.forward_pops(self.matrices, obs)
+        activations = self.genome.forward_pops(self.matrices, obs)
+        return jax.vmap(self.slice_activation)(activations, self.n_nodes[:, 0])
     
-    
-# obs = jax.random.uniform(jax.random.PRNGKey(0), shape=(100, 12), minval=-1.0, maxval=1.0)
-# policy = Policy(x, pop)
-# output = policy.forward(obs)
-# print(output.shape)
