@@ -162,7 +162,6 @@ class Genome:
             """Converts genome to weight matrix and activation vector"""
             nodes = genome.nodes
             connections = genome.connections
-
             n_nodes = nodes.shape[0]
             weight_mat = jnp.zeros((n_nodes, n_nodes))
 
@@ -174,8 +173,10 @@ class Genome:
                 source, target, weight = jnp.int32(conn[0]), jnp.int32(conn[1]), conn[2]
                 weight_mat = weight_mat.at[source, target].set(weight)
 
+            # print("Weight matrix before: ", weight_mat)
             # get topological order and apply it to the matrix
             sorted_order = jnp.int32(self.topological_sort(nodes))
+            # print("Sorted order: ", sorted_order)
             weight_mat = weight_mat[sorted_order][:, sorted_order]
 
             return pad_matrix(weight_mat, max_nodes)
@@ -269,9 +270,10 @@ class Genome:
         return weight_mat
     
     def topological_sort(self, nodes):
-        input_nodes = nodes[self.nodes[:, 1] == 0][:, 0]
-        output_nodes = nodes[self.nodes[:, 1] == 1][:, 0]
-        hidden_nodes = nodes[self.nodes[:, 1] == 2][:, 0]
+        # print("Nodes: ", nodes.shape)
+        input_nodes = nodes[nodes[:,1] == 0][:,0]
+        output_nodes = nodes[nodes[:,1] == 1][:,0]
+        hidden_nodes = nodes[nodes[:,1] == 2][:,0]
 
         sorted_nodes = jnp.concatenate((input_nodes, hidden_nodes, output_nodes), axis=0)
         return sorted_nodes
@@ -295,7 +297,7 @@ class Genome:
 
         for i in range(n_inputs, n_nodes):
             wieghted_sum = jnp.dot(node_activations, self.matrix[:, i])
-            node_activations = node_activations.at[i].set(jax.nn.relu(wieghted_sum))
+            node_activations = node_activations.at[i].set(wieghted_sum)
         
         output = node_activations[-n_outputs:]
         return output
@@ -343,7 +345,7 @@ class Genome:
 
 
 #Test
-envs = 100
+envs = 1
 obs_size = 12
 config = {
     "prob_enable": 0.5,
@@ -354,9 +356,18 @@ config = {
 }
 # example_genome = Genome(config=config)
 # pops = example_genome.init_pops(jax.random.split(jax.random.PRNGKey(0), envs))
-# # create random observation of 3 values and for 10 environments
+# # # create random observation of 3 values and for 10 environments
 # obs = jax.random.uniform(jax.random.PRNGKey(0), shape=(envs, obs_size), minval=-1.0, maxval=1.0)
+# print("Observation: ", obs[0])
+# pop1 = GenomeData(pops.nodes[0], pops.connections[0], pops.innovation_count[0], pops.node_count[0], pops.key[0], pops.matrix[0])
+# # print("Nodes: ", pop1.nodes.shape)
+# matrix = example_genome.express(pop1, 15).reshape(1,15,15)
+# print("Matrix: ", matrix)
+# # increase dimension of matrix 
 
+# print("Activations: ",example_genome.forward_pops(matrix, obs))
+# print("Connections: ",pops.connections[0])
+# example_genome.visualize(pops.nodes[0], pops.connections[0])
 # pops = example_genome.express(pops)
 # # pops.matrix = matrices
 # # assign the matrix to the population

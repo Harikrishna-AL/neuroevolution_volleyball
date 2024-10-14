@@ -17,4 +17,5 @@ def get_rewards(keys, env, policy, num_envs):
         if jnp.all(done):
             print("All environments completed")
             break
+    print(actions)
     return total_rewards
