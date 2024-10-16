@@ -1,5 +1,27 @@
 import jax.numpy as jnp
+import jax
 
+
+def get_activation():
+    # basic 15 differentiable activation functions
+    activation_functions = (
+        jnp.tanh,
+        jnp.sin,
+        jnp.cos,
+        jnp.exp,
+        jnp.log,
+        jnp.abs,
+        jnp.sqrt,
+        lambda x: jnp.square(x),
+        lambda x: jnp.maximum(x, 0),  # maximum requires two arguments, so we use it as ReLU-like function
+        lambda x: jnp.minimum(x, 1),  # minimum for demonstration purposes
+        jax.nn.relu,
+        jax.nn.sigmoid,
+        jax.nn.softplus,
+        jax.nn.soft_sign,
+        jax.nn.elu
+    )
+    return activation_functions
 
 def node_order(nodes, connections):
     pass

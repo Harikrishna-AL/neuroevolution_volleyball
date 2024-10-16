@@ -1,7 +1,10 @@
+from utils import get_activation
+
 import jax
 import jax.numpy as jnp
 import random
 from flax.struct import dataclass
+from jax import lax
 
 @dataclass
 class GenomeData:
@@ -25,8 +28,8 @@ class Genome:
         self.config = config
 
         def _init_pop(key):
-            input_num = 12
-            output_num = 3
+            input_num = self.config['input_num']
+            output_num = self.config['output_num']
 
             nodes = jnp.zeros((input_num + output_num, 2))
             nodes = nodes.at[:input_num, 1].set(0)
@@ -71,8 +74,8 @@ class Genome:
         #     return output
         
         def _forward(matrix, obs):
-            n_inputs = 12
-            n_outputs = 3
+            n_inputs = self.config['input_num']
+            n_outputs = self.config['output_num']
             
             # Use jax.lax.stop_gradient to obtain a static value for num_nodes
             num_nodes = matrix.shape[0]
@@ -81,10 +84,14 @@ class Genome:
             # Use the static value for creating the zeros array
             node_activations = jnp.zeros(num_nodes_static, dtype=jnp.float32)
             node_activations = node_activations.at[:n_inputs].set(obs)
-
+            key = jax.random.PRNGKey(0)
             for i in range(n_inputs, num_nodes_static):
+                key, subkey = jax.random.split(key)
                 weighted_sum = jnp.dot(node_activations, matrix[:, i])
-                node_activations = node_activations.at[i].set(jax.nn.relu(weighted_sum))
+                activation_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=15)
+                # activation = get_activation(activation_idx)
+                activation_result = lax.switch(activation_idx, get_activation(), weighted_sum)
+                node_activations = node_activations.at[i].set(activation_result)
             
             # output = node_activations[-n_outputs:]
             return node_activations
@@ -169,9 +176,9 @@ class Genome:
 
             for conn in connections:
 
-                # if conn[4]:
-                source, target, weight = jnp.int32(conn[0]), jnp.int32(conn[1]), conn[2]
-                weight_mat = weight_mat.at[source, target].set(weight)
+                if conn[4]:
+                    source, target, weight = jnp.int32(conn[0]), jnp.int32(conn[1]), conn[2]
+                    weight_mat = weight_mat.at[source, target].set(weight)
 
             # print("Weight matrix before: ", weight_mat)
             # get topological order and apply it to the matrix
@@ -346,26 +353,32 @@ class Genome:
 
 #Test
 envs = 1
-obs_size = 12
+obs_size = 4
 config = {
     "prob_enable": 0.5,
     "prob_weight_mut": 0.8,
     "clamp_weights": 5.0,
     "prob_add_node": 0.5,
-    "prob_add_connection": 0.5
+    "prob_add_connection": 0.5,
+    "input_num": obs_size,
+    "output_num": 3
 }
 # example_genome = Genome(config=config)
 # pops = example_genome.init_pops(jax.random.split(jax.random.PRNGKey(0), envs))
-# # # create random observation of 3 values and for 10 environments
-# obs = jax.random.uniform(jax.random.PRNGKey(0), shape=(envs, obs_size), minval=-1.0, maxval=1.0)
+# # # # create random observation of 3 values and for 10 environments
+# # obs = jax.random.uniform(jax.random.PRNGKey(0), shape=(envs, obs_size), minval=-1.0, maxval=1.0)
+# obs = jnp.array([[1,1,1,1]])
 # print("Observation: ", obs[0])
 # pop1 = GenomeData(pops.nodes[0], pops.connections[0], pops.innovation_count[0], pops.node_count[0], pops.key[0], pops.matrix[0])
-# # print("Nodes: ", pop1.nodes.shape)
-# matrix = example_genome.express(pop1, 15).reshape(1,15,15)
+# # # print("Nodes: ", pop1.nodes.shape)
+# matrix = example_genome.express(pop1, 10).reshape(1,10,10)
 # print("Matrix: ", matrix)
-# # increase dimension of matrix 
+# # # increase dimension of matrix 
 
 # print("Activations: ",example_genome.forward_pops(matrix, obs))
+# # example_genome.visualize(pop1.nodes, pop1.connections)
+# print(pop1.connections)
+
 # print("Connections: ",pops.connections[0])
 # example_genome.visualize(pops.nodes[0], pops.connections[0])
 # pops = example_genome.express(pops)

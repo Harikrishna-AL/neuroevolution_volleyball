@@ -12,7 +12,7 @@ import time
 
 num_envs = 100
 max_steps = 3000
-num_generations = 20
+num_generations = 10
 
 env = SlimeVolley(max_steps=max_steps, test=False)
 
@@ -25,11 +25,13 @@ config = {
     "prob_weight_mut": 0.8,
     "clamp_weights": 5.0,
     "prob_add_node": 0.5,
-    "prob_add_connection": 0.5
+    "prob_add_connection": 0.5,
+    "input_num": 12,
+    "output_num": 3
 }
 gen = Genome(config=config)
 
-evolver = GeneticEvolution(100, gen, env)
+evolver = GeneticEvolution(num_envs, gen, env)
 
 frames_gifs = []
 RENDER = True
@@ -41,7 +43,7 @@ def train():
         keys = jax.random.split(keys[0], num_envs)
         pops = evolver.ask()
         policy = Policy(gen, pops)
-        total_rewards = get_rewards(keys, env, policy, num_envs=100)
+        total_rewards = get_rewards(keys, env, policy, num_envs=num_envs)
         evolver.tell(total_rewards)
         
         print(total_rewards)
@@ -81,9 +83,6 @@ def test(best_policy, RENDER=False):
         imageio.mimsave('slime_volleyball_episode.gif', frames, fps=30)
     
     print(f"Total reward: {total_reward}")
-    return total_reward
-
-
     return total_reward
 
 if __name__ == "__main__":  

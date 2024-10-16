@@ -2,6 +2,7 @@ from genome import Genome, GenomeData
 
 import jax
 import jax.numpy as jnp
+from jax import lax
 import random
 
 
@@ -16,6 +17,8 @@ class GeneticEvolution:
         # self.population = genome.init_pops(self.keys)
         self.population = []
         self.rewards = []
+
+        self.distance_vmap = jax.vmap(self.compatibility_distance, in_axes=(None,0))
 
     import numpy as np
 
@@ -55,7 +58,7 @@ class GeneticEvolution:
         else:
             self.population = self.rank_population()
             # TO DO 
-            # self.population = self.speciate()
+            self.species = self.speciate()
             self.population = self.evolve()
         
         return self.population
@@ -68,6 +71,111 @@ class GeneticEvolution:
     def rank_population(self):
         sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
         return sorted_population
+    
+    def compatibility_distance(self, connections1, connections2, c1=1.0, c2=1.0, c3=0.4):
+        if len(connections1.shape) == 0 or len(connections2.shape) == 0:
+            return jnp.inf
+        
+        innovations1 = connections1[:, 3]
+        innovations2 = connections2[:, 3]
+        
+        max_innov = jnp.max(jnp.concatenate([innovations1, innovations2]), axis=0, keepdims=True)
+        excess_genes = 0
+        disjoint_genes = 0
+        weight_diff_sum = 0.0
+        matching_genes = 0
+
+        max_innov = jnp.array(max_innov, int)
+        max_innov = max_innov[0]
+        max_innov = jax.lax.stop_gradient(max_innov)
+
+        def loop_body(i, carry):
+            excess_genes, disjoint_genes, weight_diff_sum, matching_genes = carry
+
+            # Check if gene i exists in both connections1 and connections2
+            in1 = jnp.any(innovations1 == i)
+            in2 = jnp.any(innovations2 == i)
+
+            # Find matching weights if both have gene i, otherwise return 0
+            def get_weight_diff(_):
+                idx1 = jnp.argmax(innovations1 == i)
+                idx2 = jnp.argmax(innovations2 == i)
+                return jnp.abs(connections1[idx1, 2] - connections2[idx2, 2])
+
+            weight_diff_sum = lax.cond(
+                in1 & in2,
+                lambda _: weight_diff_sum + get_weight_diff(_),
+                lambda _: weight_diff_sum,
+                operand=None
+            )
+
+            # Update matching genes count
+            matching_genes = lax.cond(
+                in1 & in2,
+                lambda _: matching_genes + 1,
+                lambda _: matching_genes,
+                operand=None
+            )
+
+            # Update excess genes
+            excess_genes = lax.cond(
+                (in1 | in2) & (i > jnp.max(innovations1)) & (i > jnp.max(innovations2)),
+                lambda _: excess_genes + 1,
+                lambda _: excess_genes,
+                operand=None
+            )
+
+            # Update disjoint genes
+            disjoint_genes = lax.cond(
+                (in1 | in2) & (i <= jnp.max(innovations1)) & (i <= jnp.max(innovations2)),
+                lambda _: disjoint_genes + 1,
+                lambda _: disjoint_genes,
+                operand=None
+            )
+
+            return excess_genes, disjoint_genes, weight_diff_sum, matching_genes
+
+        # Use lax.fori_loop for the loop
+        initial_carry = (0, 0, 0.0, 0)
+        excess_genes, disjoint_genes, weight_diff_sum, matching_genes = lax.fori_loop(
+            0, max_innov + 1, loop_body, initial_carry)
+ 
+        avg_weight_diff = lax.cond(
+        matching_genes > 0,
+        lambda _: weight_diff_sum / matching_genes,
+        lambda _: 0.0,
+        operand=None
+        )
+        # Calculate the compatibility distance
+        distance = c1 * excess_genes + c2 * disjoint_genes + c3 * avg_weight_diff
+        return distance
+
+    
+    def speciate(self):
+        species = []
+
+        for genome in self.population:
+            # print("Genome connections shape",genome.connections.shape)
+            distances = self.distance_vmap(genome.connections, jnp.array([specie[0].connections for specie in species]))
+            found = jnp.any(distances < 3)
+            if found:
+                specie_index = jnp.argmax(distances < 3)
+                species[specie_index].append(genome)
+            else:
+                species.append([genome])
+        
+        return species
+        # for genome in self.population:
+        #     found = False
+        #     for specie in species:
+        #         if self.compatibility_distance(genome, specie[0]) < 3:
+        #             specie.append(genome)
+        #             found = True
+        #             break
+        #     if not found:
+        #         species.append([genome])
+        
+        # return species
 
     def eval_fitness(self,genome, env):
         reward = 0
@@ -87,23 +195,27 @@ class GeneticEvolution:
         return total_reward
 
     def evolve(self):
-        sorted_population = self.rank_population()
-        top_n = self.population_size // 5
-        new_population = sorted_population[:top_n]
+        new_population = []
+        for specie in self.species:
+            # specie = self.rank_population(specie)
+            top_n = max(1, len(specie) // 5)
+            new_specie = specie[:top_n]
 
-        while len(new_population) < self.population_size:
-            parent1_idx = random.randint(0, top_n-1)
-            parent2_idx = random.randint(0, top_n-1)
+            while len(new_specie) < len(specie):
+                parent1_idx = random.randint(0, top_n-1)
+                parent2_idx = random.randint(0, top_n-1)
 
-            parent1 = sorted_population[parent1_idx]
-            parent2 = sorted_population[parent2_idx]
+                parent1 = specie[parent1_idx]
+                parent2 = specie[parent2_idx]
 
-            if random.random() < self.cross_rate:
-                child = self.genome.crossover(parent1, parent2)
-            else:
-                child, _ = self.genome.mutate(parent1)
+                if random.random() < self.cross_rate:
+                    child = self.genome.crossover(parent1, parent2)
+                else:
+                    child, _ = self.genome.mutate(parent1)
+                
+                new_specie.append(child)
             
-            new_population.append(child)
+            new_population.extend(new_specie)
 
         return new_population
 
