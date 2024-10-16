@@ -12,7 +12,7 @@ import time
 
 num_envs = 100
 max_steps = 3000
-num_generations = 10
+num_generations = 50
 
 env = SlimeVolley(max_steps=max_steps, test=False)
 
@@ -40,6 +40,7 @@ def train():
     keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
     for i in range(num_generations):
         # split keys for each population using the initial key
+        print(f"Generation {i+1}")
         keys = jax.random.split(keys[0], num_envs)
         pops = evolver.ask()
         policy = Policy(gen, pops)
@@ -47,8 +48,11 @@ def train():
         evolver.tell(total_rewards)
         
         print(total_rewards)
+        print(f"Max reward: {jnp.max(total_rewards)}")
         print(f"Mean reward: {jnp.mean(total_rewards)}")
-        print(f"Generation {i} completed")
+        print(f"Min reward: {jnp.min(total_rewards)}")
+        print("-----------------------------------------")
+        
 
     gen.visualize(pops[0].nodes, pops[0].connections)
     return pops[0]

@@ -1,4 +1,5 @@
 from genome import Genome, GenomeData
+from utils import manage_specie_shape
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +8,7 @@ import random
 
 
 class GeneticEvolution:
-    def __init__(self, population_size, genome, obs_size, mutation_rate=0.1, crossover_rate=0.5):
+    def __init__(self, population_size, genome, obs_size, mutation_rate=0.5, crossover_rate=0.5):
         self.population_size = population_size
         self.genome = genome
         self.mutation_rate = mutation_rate
@@ -72,7 +73,7 @@ class GeneticEvolution:
         sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
         return sorted_population
     
-    def compatibility_distance(self, connections1, connections2, c1=1.0, c2=1.0, c3=0.4):
+    def compatibility_distance(self, connections1, connections2, c1=2, c2=1.0, c3=0.4):
         if len(connections1.shape) == 0 or len(connections2.shape) == 0:
             return jnp.inf
         
@@ -147,7 +148,10 @@ class GeneticEvolution:
         operand=None
         )
         # Calculate the compatibility distance
-        distance = c1 * excess_genes + c2 * disjoint_genes + c3 * avg_weight_diff
+        # print("Excess genes: ",excess_genes)
+        # print("Disjoint genes: ",disjoint_genes)
+        # print("Average weight difference: ",avg_weight_diff)
+        distance = c1 * excess_genes + c2 * disjoint_genes + avg_weight_diff
         return distance
 
     
@@ -156,10 +160,12 @@ class GeneticEvolution:
 
         for genome in self.population:
             # print("Genome connections shape",genome.connections.shape)
-            distances = self.distance_vmap(genome.connections, jnp.array([specie[0].connections for specie in species]))
-            found = jnp.any(distances < 3)
+            distances = self.distance_vmap(genome.connections, jnp.array([manage_specie_shape(specie[0].connections, genome.connections.shape[0]) for specie in species]))
+            # print("Distances: ",distances)
+            # print("Distances shape: ",distances.shape)
+            found = jnp.any(distances < 36.65)
             if found:
-                specie_index = jnp.argmax(distances < 3)
+                specie_index = jnp.argmax(distances < 36.2)
                 species[specie_index].append(genome)
             else:
                 species.append([genome])
@@ -200,15 +206,16 @@ class GeneticEvolution:
             # specie = self.rank_population(specie)
             top_n = max(1, len(specie) // 5)
             new_specie = specie[:top_n]
-
+            # print("Specie length: ",len(specie))    
             while len(new_specie) < len(specie):
                 parent1_idx = random.randint(0, top_n-1)
                 parent2_idx = random.randint(0, top_n-1)
 
                 parent1 = specie[parent1_idx]
                 parent2 = specie[parent2_idx]
-
-                if random.random() < self.cross_rate:
+                cross_chances = random.random()
+                # print("Cross chances: ",cross_chances)
+                if cross_chances < self.cross_rate:
                     child = self.genome.crossover(parent1, parent2)
                 else:
                     child, _ = self.genome.mutate(parent1)

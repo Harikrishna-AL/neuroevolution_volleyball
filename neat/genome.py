@@ -255,6 +255,8 @@ class Genome:
         bGenes = jax.random.bernoulli(subkey, p=bProb, shape=(len(matching),))
 
         # child.connections.at[g1[bGenes[0]], 2] = parent2.connections[g2[bGenes[0]], 2]
+        # print("Genes: ", g1[bGenes])
+        # print("Genes2: ", g2[bGenes])
         cross_connections = parent1.connections.at[g1[bGenes], 2].set(parent2.connections[g2[bGenes], 2])
         # update the matrix
         # batch_nodes = parent1.nodes.unsquzze(0)

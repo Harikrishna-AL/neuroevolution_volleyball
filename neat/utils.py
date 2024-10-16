@@ -39,5 +39,15 @@ def get_rewards(keys, env, policy, num_envs):
         if jnp.all(done):
             print("All environments completed")
             break
-    print(actions)
     return total_rewards
+
+def manage_specie_shape(connections, shape):
+    if connections.shape[0] < shape:
+        diff = shape - connections.shape[0]
+        new_connections = jnp.zeros((diff, connections.shape[1]))
+        connections = jnp.vstack((connections, new_connections))
+
+    elif connections.shape[0] > shape:
+        connections = connections[:shape]
+    
+    return connections
