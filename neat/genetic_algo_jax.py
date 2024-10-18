@@ -83,8 +83,8 @@ class GeneticEvolution:
         # connections1 = connections1[connections1[:, 4] == 1.0]
         # connections2 = connections2[connections2[:, 4] == 1.0]
         # get only the enabled connections using jax.lax.select
-        connections1 = jax.lax.select(connections1[:, 4] == 1.0, connections1, jnp.zeros((1,5)))
-        connections2 = jax.lax.select(connections2[:, 4] == 1.0, connections2, jnp.zeros((1,5)))
+        connections1 = jax.lax.select(connections1[:, 4] == 1.0, connections1, jnp.zeros((connections1.shape[0],5)))
+        connections2 = jax.lax.select(connections2[:, 4] == 1.0, connections2, jnp.zeros((connections2.shape[0],5)))
 
         N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
 
