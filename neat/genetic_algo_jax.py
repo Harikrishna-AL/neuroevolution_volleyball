@@ -80,8 +80,11 @@ class GeneticEvolution:
         max_innov = jnp.max(jnp.concatenate([connections1[:,3], connections2[:,3]]), axis=0, keepdims=True)
         # print("Max innov: ",max_innov)
 
-        connections1 = connections1[connections1[:, 4] == 1.0]
-        connections2 = connections2[connections2[:, 4] == 1.0]
+        # connections1 = connections1[connections1[:, 4] == 1.0]
+        # connections2 = connections2[connections2[:, 4] == 1.0]
+        # get only the enabled connections using where
+        connections1 = connections1[jnp.where(connections1[:, 4] == 1.0)]
+        connections2 = connections2[jnp.where(connections2[:, 4] == 1.0)]
 
         N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
 
