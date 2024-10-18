@@ -73,14 +73,25 @@ class GeneticEvolution:
         sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
         return sorted_population
     
-    def compatibility_distance(self, connections1, connections2, c1=2, c2=1.0, c3=0.4):
+    def compatibility_distance(self, connections1, connections2, c1=1, c2=1, c3=0.4):
         if len(connections1.shape) == 0 or len(connections2.shape) == 0:
             return jnp.inf
         
+        max_innov = jnp.max(jnp.concatenate([connections1[:,3], connections2[:,3]]), axis=0, keepdims=True)
+        # print("Max innov: ",max_innov)
+
+        connections1 = connections1[connections1[:, 4] == 1.0]
+        connections2 = connections2[connections2[:, 4] == 1.0]
+
+        N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
+
         innovations1 = connections1[:, 3]
         innovations2 = connections2[:, 3]
+
+        # print("Innovations1: ",innovations1)
+        # print("Innovations2: ",innovations2)
         
-        max_innov = jnp.max(jnp.concatenate([innovations1, innovations2]), axis=0, keepdims=True)
+        
         excess_genes = 0
         disjoint_genes = 0
         weight_diff_sum = 0.0
@@ -120,7 +131,7 @@ class GeneticEvolution:
 
             # Update excess genes
             excess_genes = lax.cond(
-                (in1 | in2) & (i > jnp.max(innovations1)) & (i > jnp.max(innovations2)),
+                (in1 | in2) & ((i > jnp.max(innovations1)) | (i > jnp.max(innovations2))),
                 lambda _: excess_genes + 1,
                 lambda _: excess_genes,
                 operand=None
@@ -128,7 +139,8 @@ class GeneticEvolution:
 
             # Update disjoint genes
             disjoint_genes = lax.cond(
-                (in1 | in2) & (i <= jnp.max(innovations1)) & (i <= jnp.max(innovations2)),
+                # (in1 | in2) & (i <= jnp.max(innovations1)) & (i <= jnp.max(innovations2)),
+                (in1 | in2) & (in1 != in2) & ((i <= jnp.max(innovations1)) | (i <= jnp.max(innovations2))),
                 lambda _: disjoint_genes + 1,
                 lambda _: disjoint_genes,
                 operand=None
@@ -151,7 +163,12 @@ class GeneticEvolution:
         # print("Excess genes: ",excess_genes)
         # print("Disjoint genes: ",disjoint_genes)
         # print("Average weight difference: ",avg_weight_diff)
-        distance = c1 * excess_genes + c2 * disjoint_genes + avg_weight_diff
+        # print("Excess genes: ",excess_genes)
+        # print("Disjoint genes: ",disjoint_genes)
+        # print("Average weight difference: ",avg_weight_diff)
+        # print("Matching genes: ",matching_genes)
+        # print("N: ",N)
+        distance = c1 * (excess_genes / N) + c2 * (disjoint_genes / N) + c3 * (avg_weight_diff/ matching_genes)
         return distance
 
     
@@ -163,9 +180,9 @@ class GeneticEvolution:
             distances = self.distance_vmap(genome.connections, jnp.array([manage_specie_shape(specie[0].connections, genome.connections.shape[0]) for specie in species]))
             # print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 36.65)
+            found = jnp.any(distances < 1)
             if found:
-                specie_index = jnp.argmax(distances < 36.2)
+                specie_index = jnp.argmax(distances < 1)
                 species[specie_index].append(genome)
             else:
                 species.append([genome])
@@ -261,4 +278,25 @@ class Policy:
     def _forward(self, obs):
         activations = self.genome.forward_pops(self.matrices, obs)
         return jax.vmap(self.slice_activation)(activations, self.n_nodes[:, 0])
+
+
+# num_envs = 10
+# obs_size = 12
+# config = {
+#     "prob_enable": 0.5,
+#     "prob_weight_mut": 0.8,
+#     "clamp_weights": 5.0,
+#     "prob_add_node": 0.5,
+#     "prob_add_connection": 0.5,
+#     "input_num": obs_size,
+#     "output_num": 3
+# }
+# test_genome = Genome(config=config)
+# evolver = GeneticEvolution(num_envs, test_genome, 12)
+# pops = evolver.ask()
+# genome1 = pops[0]
+# genome2 = pops[1]
+
+# dist = evolver.compatibility_distance(genome1.connections, genome2.connections)
+# print("Distance: ",dist)
     
