@@ -10,7 +10,7 @@ import gym
 import slimevolleygym
 import time
 
-num_envs = 10
+num_envs = 100
 max_steps = 3000
 num_generations = 50
 
