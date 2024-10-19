@@ -83,8 +83,18 @@ class GeneticEvolution:
         # connections1 = connections1[connections1[:, 4] == 1.0]
         # connections2 = connections2[connections2[:, 4] == 1.0]
         # get only the enabled connections using jax.lax.select
-        connections1 = jax.lax.select(connections1[:, 4] == 1.0, connections1, jnp.zeros((connections1.shape[0],5)))
-        connections2 = jax.lax.select(connections2[:, 4] == 1.0, connections2, jnp.zeros((connections2.shape[0],5)))
+        # print("Connections1 shape: ",connections1.shape)
+        # print("Connections2 shape: ",connections2.shape)
+        # connections1 = jax.lax.select(
+        # (connections1[:, 4] == 1.0)[:, jnp.newaxis],
+        # connections1,
+        # jnp.zeros_like(connections1)
+        # )
+        # connections2 = jax.lax.select(
+        #     (connections2[:, 4] == 1.0)[:, jnp.newaxis],
+        #     connections2,
+        #     jnp.zeros_like(connections2)
+        # )
 
         N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
 
@@ -174,13 +184,16 @@ class GeneticEvolution:
         distance = c1 * (excess_genes / N) + c2 * (disjoint_genes / N) + c3 * (avg_weight_diff/ matching_genes)
         return distance
 
+    def get_enabled_connections(self, connections):
+        return connections[connections[:, 4] == 1.0]
     
     def speciate(self):
         species = []
 
         for genome in self.population:
             # print("Genome connections shape",genome.connections.shape)
-            distances = self.distance_vmap(genome.connections, jnp.array([manage_specie_shape(specie[0].connections, genome.connections.shape[0]) for specie in species]))
+            genome_connections = self.get_enabled_connections(genome.connections)
+            distances = self.distance_vmap(genome_connections, jnp.array([manage_specie_shape(self.get_enabled_connections(specie[0].connections), genome_connections.shape[0]) for specie in species]))
             # print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
             found = jnp.any(distances < 1)
