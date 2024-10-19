@@ -233,7 +233,7 @@ class GeneticEvolution:
             # specie = self.rank_population(specie)
             top_n = max(1, len(specie) // 5)
             new_specie = specie[:top_n]
-            print("Specie length: ",len(specie))    
+            # print("Specie length: ",len(specie))    
             while len(new_specie) < len(specie):
                 parent1_idx = random.randint(0, top_n-1)
                 parent2_idx = random.randint(0, top_n-1)
