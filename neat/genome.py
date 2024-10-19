@@ -14,6 +14,7 @@ class GenomeData:
     node_count : int
     key : jnp.ndarray
     matrix : jnp.ndarray
+    fitness: float = 0.0
 
 
 

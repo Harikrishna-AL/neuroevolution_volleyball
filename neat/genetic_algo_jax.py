@@ -68,9 +68,20 @@ class GeneticEvolution:
     def tell(self, rewards):
         self.rewards = rewards
         self.fitnesses = rewards
+        for i in range(len(self.population)):
+            # print(self.population[i])
+            genome = GenomeData(self.population[i].nodes, self.population[i].connections, self.population[i].innovation_count, self.population[i].node_count, self.population[i].key, self.population[i].matrix, fitness=rewards[i])
+            # self.population[i].fitness = rewards[i]
+            self.population[i] = genome
+
+    def rank(self, population):
+        fitnesses = jnp.array([genome.fitness for genome in population])
+        sorted_population = [population[idx] for idx in jnp.argsort(fitnesses)[::-1]]
+        return sorted_population
+
 
     def rank_population(self):
-        sorted_population = [self.population[idx] for idx in jnp.argsort(self.fitnesses)[::-1]]
+        sorted_population = self.rank(self.population)
         return sorted_population
     
     def compatibility_distance(self, connections1, connections2, c1=1, c2=1, c3=0.4):
@@ -78,23 +89,6 @@ class GeneticEvolution:
             return jnp.inf
         
         max_innov = jnp.max(jnp.concatenate([connections1[:,3], connections2[:,3]]), axis=0, keepdims=True)
-        # print("Max innov: ",max_innov)
-
-        # connections1 = connections1[connections1[:, 4] == 1.0]
-        # connections2 = connections2[connections2[:, 4] == 1.0]
-        # get only the enabled connections using jax.lax.select
-        # print("Connections1 shape: ",connections1.shape)
-        # print("Connections2 shape: ",connections2.shape)
-        # connections1 = jax.lax.select(
-        # (connections1[:, 4] == 1.0)[:, jnp.newaxis],
-        # connections1,
-        # jnp.zeros_like(connections1)
-        # )
-        # connections2 = jax.lax.select(
-        #     (connections2[:, 4] == 1.0)[:, jnp.newaxis],
-        #     connections2,
-        #     jnp.zeros_like(connections2)
-        # )
 
         N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
 
@@ -103,7 +97,6 @@ class GeneticEvolution:
 
         # print("Innovations1: ",innovations1)
         # print("Innovations2: ",innovations2)
-        
         
         excess_genes = 0
         disjoint_genes = 0
@@ -191,7 +184,6 @@ class GeneticEvolution:
         species = []
 
         for genome in self.population:
-            # print("Genome connections shape",genome.connections.shape)
             genome_connections = self.get_enabled_connections(genome.connections)
             distances = self.distance_vmap(genome_connections, jnp.array([manage_specie_shape(self.get_enabled_connections(specie[0].connections), genome_connections.shape[0]) for specie in species]))
             # print("Distances: ",distances)
@@ -202,19 +194,21 @@ class GeneticEvolution:
                 species[specie_index].append(genome)
             else:
                 species.append([genome])
-        
+
+        # adjusted fitness for each species
+        for s in range(len(species)):
+            specie = species[s]
+            specie_size  = len(specie)
+            for g in range(len(specie)):
+                genome = specie[g]
+                genome = GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, genome.key, genome.matrix, fitness=genome.fitness / specie_size)
+                specie[g] = genome
+
+            # rank the species
+            specie = self.rank(specie)
+            species[s] = specie
+
         return species
-        # for genome in self.population:
-        #     found = False
-        #     for specie in species:
-        #         if self.compatibility_distance(genome, specie[0]) < 3:
-        #             specie.append(genome)
-        #             found = True
-        #             break
-        #     if not found:
-        #         species.append([genome])
-        
-        # return species
 
     def eval_fitness(self,genome, env):
         reward = 0
@@ -239,7 +233,7 @@ class GeneticEvolution:
             # specie = self.rank_population(specie)
             top_n = max(1, len(specie) // 5)
             new_specie = specie[:top_n]
-            # print("Specie length: ",len(specie))    
+            print("Specie length: ",len(specie))    
             while len(new_specie) < len(specie):
                 parent1_idx = random.randint(0, top_n-1)
                 parent2_idx = random.randint(0, top_n-1)
