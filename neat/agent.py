@@ -9,10 +9,11 @@ import imageio
 import gym
 import slimevolleygym
 import time
+import argparse
 
 num_envs = 100
 max_steps = 3000
-num_generations = 50
+# num_generations = 50
 
 env = SlimeVolley(max_steps=max_steps, test=False)
 
@@ -36,9 +37,9 @@ evolver = GeneticEvolution(num_envs, gen, env)
 frames_gifs = []
 RENDER = True
 
-def train():
+def train(args):
     keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
-    for i in range(num_generations):
+    for i in range(args.num_generations):
         # split keys for each population using the initial key
         print(f"Generation {i+1}")
         keys = jax.random.split(keys[0], num_envs)
@@ -90,7 +91,10 @@ def test(best_policy, RENDER=False):
     return total_reward
 
 if __name__ == "__main__":  
-    best_net = train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_generations", type=int, default=200)
+    args = parser.parse_args()
+    best_net = train(args=args)
     test(best_net)
 
 
