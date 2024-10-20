@@ -94,16 +94,16 @@ def train():
         print(f"Generation {i+1}")
 
         idx = np.random.choice(train_input.shape[0], num_envs)
-        train_input = train_input[idx]
-        train_target = train_target[idx]
+        input = train_input[idx]
+        target = train_target[idx]
 
         pops = evolver.ask()
         num_connections = jnp.array([p.connections.shape[0] for p in pops])
         connection_penalty = 0.1
         policy = Policy(gen, pops, config)
-        output = jax.nn.sigmoid(policy.forward(train_input))
+        output = jax.nn.sigmoid(policy.forward(input))
         # print(output.shape, train_target.shape)
-        rewards =  - (output - train_target) ** 2 
+        rewards =  - (output - target) ** 2 
         # convert rewards to 1d array
         rewards = jnp.mean(rewards, axis=1) 
         rewards = rewards * jnp.sqrt(1 + connection_penalty * num_connections)
