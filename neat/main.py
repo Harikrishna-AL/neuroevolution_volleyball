@@ -116,20 +116,9 @@ def train():
         # accuracy = accuracy * 100
         # mean_error = jnp.mean((output - train_target) ** 2)
 
-        if i % 5:
+        if i % 5==0:
             #visualize the best policy
-            best_fitness, img = gen.visualize(pops[0])
+            best_fitness, img = gen.visualize(pops[0], i)
             print("Best Fitness: ", best_fitness)
-
-            #save the image in the results folder
-            # make sure the results folder exists
-            if not os.path.exists("results"):
-                os.makedirs("results")
-
-            img = img.savefig(f"results/gen_{i}.png")
-
-        # print("Accuracy: ", accuracy)
-        # print("Mean Error: ", mean_error)
-
-
+            
 train()

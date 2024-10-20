@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import random
 from flax.struct import dataclass
 from jax import lax
+import os
 
 
 @dataclass
@@ -469,7 +470,7 @@ class Genome:
     # def backward(self, loss):
     #     pass
 
-    def visualize(self, genome: GenomeData):
+    def visualize(self, genome: GenomeData, i):
         import networkx as nx
         import matplotlib.pyplot as plt
 
@@ -517,8 +518,13 @@ class Genome:
 
         # plt.show()
 
-        img = plt.show()
-        return fitness, img
+        plt.show()
+        # make sure the results folder exists
+        if not os.path.exists("results"):
+            os.makedirs("results")
+
+        plt.savefig(f"results/gen_{i}.png")
+        return fitness
 
 
 # Test
