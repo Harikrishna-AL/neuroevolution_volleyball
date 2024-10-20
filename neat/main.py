@@ -6,6 +6,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 import argparse
+import os
 
 
 data_name_map = {
@@ -115,10 +116,17 @@ def train():
         # accuracy = accuracy * 100
         # mean_error = jnp.mean((output - train_target) ** 2)
 
-        if i == 4:
+        if i % 5:
             #visualize the best policy
-            best_fitness = gen.visualize(pops[0])
+            best_fitness, img = gen.visualize(pops[0])
             print("Best Fitness: ", best_fitness)
+
+            #save the image in the results folder
+            # make sure the results folder exists
+            if not os.path.exists("results"):
+                os.makedirs("results")
+
+            img = img.savefig(f"results/gen_{i}.png")
 
         # print("Accuracy: ", accuracy)
         # print("Mean Error: ", mean_error)

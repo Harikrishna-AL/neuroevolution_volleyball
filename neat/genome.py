@@ -515,9 +515,10 @@ class Genome:
         #display the fitness of the genome at the top
         plt.title(f"Fitness: {fitness}")
 
-        plt.show()
+        # plt.show()
 
-        return fitness
+        img = plt.show()
+        return fitness, img
 
 
 # Test
