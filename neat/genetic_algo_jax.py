@@ -271,20 +271,52 @@ class GeneticEvolution:
             # Update medoids
             new_mediods = update_medoids(clusters, self.population)
             
-            # Check for convergence
+            
             if all(self.compare_genomes(new_mediods[i], mediods[i]) for i in range(len(new_mediods))):
                 break
-
+            
             mediods = new_mediods
 
         return clusters
 
+    def compare_genomes(self, genome1, genome2, tolerance=1e-5):
+        # Ensure genome1 and genome2 are instances of GenomeData
+        if not isinstance(genome1, GenomeData) or not isinstance(genome2, GenomeData):
+            raise TypeError("Both arguments must be instances of GenomeData.")
 
-
-    def compare_genomes(self, genome1, genome2):
+        # Check nodes
         nodes_check = jnp.all(genome1.nodes == genome2.nodes)
-        connections_check = jnp.all(genome1.connections == genome2.connections)
-        return nodes_check and connections_check
+        if not nodes_check:
+            return False
+
+        # Extract the connection arrays for each genome
+        connections1 = genome1.connections
+        connections2 = genome2.connections
+        
+        # Compare the number of connections (basic structure comparison)
+        if connections1.shape != connections2.shape:
+            return False
+        
+        # Compare weights of connections (assumed to be in the third column)
+        weights1 = connections1[:, 2]  # Assuming weights are in the third column
+        weights2 = connections2[:, 2]
+        if jnp.any(jnp.abs(weights1 - weights2) > tolerance):
+            return False
+        
+        # Compare enabled status of connections (assumed to be in the fifth column)
+        enabled1 = connections1[:, 4]  # Assuming enabled status is in the fifth column
+        enabled2 = connections2[:, 4]
+        if jnp.any(enabled1 != enabled2):  # Check if any enabled status differs
+            return False
+        
+        # If all checks passed, the genomes are considered the same
+        return True
+
+
+    # def compare_genomes(self, genome1, genome2):
+    #     nodes_check = jnp.all(genome1.nodes == genome2.nodes)
+    #     connections_check = jnp.all(genome1.connections == genome2.connections)
+    #     return nodes_check and connections_check
 
     def speciate(self):
         species = []
