@@ -77,12 +77,13 @@ def train():
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_envs", type=int, default=50)
     parser.add_argument("--max_generations", type=int, default=5)
+    parser.add_argument("--data", type=int, default=0)
     args = parser.parse_args()
 
     num_envs = args.num_envs
     max_generations = args.max_generations
 
-    train_input, train_target, test_input, test_target = get_data(0)
+    train_input, train_target, test_input, test_target = get_data(args.data)
     # sample 100 random points from the data
     
     gen = Genome(config=config)
