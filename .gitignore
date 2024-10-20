@@ -1,3 +1,4 @@
 env/
 __pycache__
 neat_jax/
+neat/results/
