@@ -118,7 +118,7 @@ def train():
 
         if i % 5==0:
             #visualize the best policy
-            best_fitness, img = gen.visualize(pops[0], i)
+            best_fitness = gen.visualize(pops[0], i)
             print("Best Fitness: ", best_fitness)
-            
+
 train()
