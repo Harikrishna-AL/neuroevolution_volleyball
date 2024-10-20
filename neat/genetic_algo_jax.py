@@ -239,16 +239,22 @@ class GeneticEvolution:
             new_mediods = []
             for cluster in clusters:
                 if len(cluster) > 0:
+                    # Ensure cluster data is in the form of JAX arrays
+                    cluster_data = jnp.array([extract_data(genome) for genome in cluster])
+                    
                     # Compute pairwise distances within each cluster
-                    dist_fn = lambda genome1, genome2: self.compatibility_distance(genome1.connections, genome2.connections)
-                    pairwise_dist = vmap(lambda genome1: vmap(dist_fn, in_axes=(None, 0))(extract_data(genome1), cluster))(cluster)
+                    dist_fn = lambda genome1, genome2: self.compatibility_distance(genome1, genome2)
+                    pairwise_dist = vmap(lambda genome1: vmap(dist_fn, in_axes=(None, 0))(genome1, cluster_data))(cluster_data)
+                    
                     # Find the genome with the minimum total distance in the cluster
                     medoid_idx = jnp.argmin(jnp.sum(pairwise_dist, axis=1))
-                    new_mediods.append(extract_data(cluster[medoid_idx]))
+                    new_mediods.append(cluster[medoid_idx])
                 else:
                     # Keep the old medoid if the cluster is empty
                     new_mediods.append(mediods[len(new_mediods)])
+
             return jnp.array(new_mediods)
+
 
         for _ in range(max_iter):
             # Assign clusters (vectorized)
