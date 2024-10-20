@@ -13,18 +13,22 @@ def get_activation():
         jnp.abs,
         jnp.sqrt,
         lambda x: jnp.square(x),
-        lambda x: jnp.maximum(x, 0),  # maximum requires two arguments, so we use it as ReLU-like function
+        lambda x: jnp.maximum(
+            x, 0
+        ),  # maximum requires two arguments, so we use it as ReLU-like function
         lambda x: jnp.minimum(x, 1),  # minimum for demonstration purposes
         jax.nn.relu,
         jax.nn.sigmoid,
         jax.nn.softplus,
         jax.nn.soft_sign,
-        jax.nn.elu
+        jax.nn.elu,
     )
     return activation_functions
 
+
 def node_order(nodes, connections):
     pass
+
 
 def get_rewards(keys, env, policy, num_envs):
     state = env.reset(keys)
@@ -41,6 +45,7 @@ def get_rewards(keys, env, policy, num_envs):
             break
     return total_rewards
 
+
 def manage_specie_shape(connections, shape):
     if connections.shape[0] < shape:
         diff = shape - connections.shape[0]
@@ -49,5 +54,5 @@ def manage_specie_shape(connections, shape):
 
     elif connections.shape[0] > shape:
         connections = connections[:shape]
-    
+
     return connections

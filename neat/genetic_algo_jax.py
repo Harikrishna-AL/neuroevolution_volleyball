@@ -8,7 +8,9 @@ import random
 
 
 class GeneticEvolution:
-    def __init__(self, population_size, genome, obs_size, mutation_rate=0.5, crossover_rate=0.5):
+    def __init__(
+        self, population_size, genome, obs_size, mutation_rate=0.5, crossover_rate=0.5
+    ):
         self.population_size = population_size
         self.genome = genome
         self.mutation_rate = mutation_rate
@@ -19,20 +21,27 @@ class GeneticEvolution:
         self.population = []
         self.rewards = []
 
-        self.distance_vmap = jax.vmap(self.compatibility_distance, in_axes=(None,0))
+        self.distance_vmap = jax.vmap(self.compatibility_distance, in_axes=(None, 0))
 
     import numpy as np
 
     # Assuming 'population' is a GenomeData object
-    def convert_population_to_numpy(self,population):
+    def convert_population_to_numpy(self, population):
         arr_population = []
         for i in range(population.nodes.shape[0]):
-            genome = GenomeData(population.nodes[i], population.connections[i], population.innovation_count[i], population.node_count[i], population.key[i], population.matrix[i])
+            genome = GenomeData(
+                population.nodes[i],
+                population.connections[i],
+                population.innovation_count[i],
+                population.node_count[i],
+                population.key[i],
+                population.matrix[i],
+            )
             arr_population.append(genome)
-        
+
         return arr_population
 
-    def convert_population_to_genome(self,population):
+    def convert_population_to_genome(self, population):
         nodes = []
         connections = []
         innovation_count = []
@@ -46,8 +55,15 @@ class GeneticEvolution:
             node_count.append(population[i].node_count)
             key.append(population[i].key)
             matrix.append(population[i].matrix)
-        
-        return GenomeData(jnp.array(nodes), jnp.array(connections), jnp.array(innovation_count), jnp.array(node_count), jnp.array(key), jnp.array(matrix))
+
+        return GenomeData(
+            jnp.array(nodes),
+            jnp.array(connections),
+            jnp.array(innovation_count),
+            jnp.array(node_count),
+            jnp.array(key),
+            jnp.array(matrix),
+        )
 
     def ask(self):
         length = len(self.population)
@@ -55,49 +71,64 @@ class GeneticEvolution:
             self.population = self.genome.init_pops(self.keys)
             self.population = self.convert_population_to_numpy(self.population)
             # print(self.population)
-            
+
         else:
             self.population = self.rank_population()
-            # TO DO 
+            # TO DO
             self.species = self.speciate()
             self.population = self.evolve()
-        
-        return self.population
 
-    
+        return self.rank_population()
+
     def tell(self, rewards):
         self.rewards = rewards
         self.fitnesses = rewards
         for i in range(len(self.population)):
             # print(self.population[i])
-            genome = GenomeData(self.population[i].nodes, self.population[i].connections, self.population[i].innovation_count, self.population[i].node_count, self.population[i].key, self.population[i].matrix, fitness=rewards[i])
+            genome = GenomeData(
+                self.population[i].nodes,
+                self.population[i].connections,
+                self.population[i].innovation_count,
+                self.population[i].node_count,
+                self.population[i].key,
+                self.population[i].matrix,
+                fitness=rewards[i],
+            )
             # self.population[i].fitness = rewards[i]
             self.population[i] = genome
 
+        # replace the worst performing species with the best performing species
+        
     def rank(self, population):
         fitnesses = jnp.array([genome.fitness for genome in population])
+        # print("pop len", len(population))
+        # print("Fitnesses: ",fitnesses)
         sorted_population = [population[idx] for idx in jnp.argsort(fitnesses)[::-1]]
         return sorted_population
-
 
     def rank_population(self):
         sorted_population = self.rank(self.population)
         return sorted_population
-    
+
     def compatibility_distance(self, connections1, connections2, c1=1, c2=1, c3=0.4):
         if len(connections1.shape) == 0 or len(connections2.shape) == 0:
             return jnp.inf
-        
-        max_innov = jnp.max(jnp.concatenate([connections1[:,3], connections2[:,3]]), axis=0, keepdims=True)
+
+        if connections1.shape[0] == 0 or connections2.shape[0] == 0:
+            return jnp.inf
+        # print("Connections1: ", connections1)
+        # print("Connections2: ", connections2)
+        max_innov = jnp.max(
+            jnp.concatenate([connections1[:, 3], connections2[:, 3]]),
+            axis=0,
+            keepdims=True,
+        )
 
         N = jnp.max(jnp.array([connections1.shape[0], connections2.shape[0]]))
 
         innovations1 = connections1[:, 3]
         innovations2 = connections2[:, 3]
 
-        # print("Innovations1: ",innovations1)
-        # print("Innovations2: ",innovations2)
-        
         excess_genes = 0
         disjoint_genes = 0
         weight_diff_sum = 0.0
@@ -124,7 +155,7 @@ class GeneticEvolution:
                 in1 & in2,
                 lambda _: weight_diff_sum + get_weight_diff(_),
                 lambda _: weight_diff_sum,
-                operand=None
+                operand=None,
             )
 
             # Update matching genes count
@@ -132,24 +163,27 @@ class GeneticEvolution:
                 in1 & in2,
                 lambda _: matching_genes + 1,
                 lambda _: matching_genes,
-                operand=None
+                operand=None,
             )
 
             # Update excess genes
             excess_genes = lax.cond(
-                (in1 | in2) & ((i > jnp.max(innovations1)) | (i > jnp.max(innovations2))),
+                (in1 | in2)
+                & ((i > jnp.max(innovations1)) | (i > jnp.max(innovations2))),
                 lambda _: excess_genes + 1,
                 lambda _: excess_genes,
-                operand=None
+                operand=None,
             )
 
             # Update disjoint genes
             disjoint_genes = lax.cond(
                 # (in1 | in2) & (i <= jnp.max(innovations1)) & (i <= jnp.max(innovations2)),
-                (in1 | in2) & (in1 != in2) & ((i <= jnp.max(innovations1)) | (i <= jnp.max(innovations2))),
+                (in1 | in2)
+                & (in1 != in2)
+                & ((i <= jnp.max(innovations1)) | (i <= jnp.max(innovations2))),
                 lambda _: disjoint_genes + 1,
                 lambda _: disjoint_genes,
-                operand=None
+                operand=None,
             )
 
             return excess_genes, disjoint_genes, weight_diff_sum, matching_genes
@@ -157,38 +191,96 @@ class GeneticEvolution:
         # Use lax.fori_loop for the loop
         initial_carry = (0, 0, 0.0, 0)
         excess_genes, disjoint_genes, weight_diff_sum, matching_genes = lax.fori_loop(
-            0, max_innov + 1, loop_body, initial_carry)
- 
-        avg_weight_diff = lax.cond(
-        matching_genes > 0,
-        lambda _: weight_diff_sum / matching_genes,
-        lambda _: 0.0,
-        operand=None
+            0, max_innov + 1, loop_body, initial_carry
         )
-        # Calculate the compatibility distance
-        # print("Excess genes: ",excess_genes)
-        # print("Disjoint genes: ",disjoint_genes)
-        # print("Average weight difference: ",avg_weight_diff)
-        # print("Excess genes: ",excess_genes)
-        # print("Disjoint genes: ",disjoint_genes)
-        # print("Average weight difference: ",avg_weight_diff)
-        # print("Matching genes: ",matching_genes)
-        # print("N: ",N)
-        distance = c1 * (excess_genes / N) + c2 * (disjoint_genes / N) + c3 * (avg_weight_diff/ matching_genes)
+
+        avg_weight_diff = lax.cond(
+            matching_genes > 0,
+            lambda _: weight_diff_sum / matching_genes,
+            lambda _: 0.0,
+            operand=None,
+        )
+
+        distance = (
+            c1 * (excess_genes / N)
+            + c2 * (disjoint_genes / N)
+            + c3 * (avg_weight_diff / matching_genes)
+        )
         return distance
 
     def get_enabled_connections(self, connections):
         return connections[connections[:, 4] == 1.0]
-    
+
+    def kmediods(self, k=5, max_iter=100):
+        mediods_indices = jax.random.randint(
+            self.keys[0], (k,), 0, self.population_size
+        )
+        mediods = [self.population[i] for i in mediods_indices]
+
+        for _ in range(max_iter):
+            clusters = [[] for _ in range(k)]
+            for genome in self.population:
+                distances = [
+                    self.compatibility_distance(genome.connections, mediod.connections)
+                    for mediod in mediods
+                ]
+                cluster_idx = jnp.argmin(jnp.array(distances))
+                clusters[cluster_idx].append(genome)
+
+            new_mediods = []
+            for cluster in clusters:
+                if len(cluster) > 0:
+                    pairwise_dist = jnp.array(
+                        [
+                            [
+                                self.compatibility_distance(
+                                    genome1.connections, genome2.connections
+                                )
+                                for genome2 in cluster
+                            ]
+                            for genome1 in cluster
+                        ]
+                    )
+                    mdoid_idx = jnp.argmin(jnp.sum(pairwise_dist, axis=1))
+                    new_mediods.append(cluster[mdoid_idx])
+
+                else:
+                    new_mediods.append(mediods[len(new_mediods)])
+
+            if all(
+                [self.compare_genomes(new_mediods[i], mediods[i]) for i in range(k)]
+            ):
+                break
+
+            mediods = new_mediods
+
+        return clusters
+
+    def compare_genomes(self, genome1, genome2):
+        nodes_check = jnp.all(genome1.nodes == genome2.nodes)
+        connections_check = jnp.all(genome1.connections == genome2.connections)
+        return nodes_check and connections_check
+
     def speciate(self):
         species = []
 
         for genome in self.population:
             genome_connections = self.get_enabled_connections(genome.connections)
-            distances = self.distance_vmap(genome_connections, jnp.array([manage_specie_shape(self.get_enabled_connections(specie[0].connections), genome_connections.shape[0]) for specie in species]))
+            distances = self.distance_vmap(
+                genome_connections,
+                jnp.array(
+                    [
+                        manage_specie_shape(
+                            self.get_enabled_connections(specie[0].connections),
+                            genome_connections.shape[0],
+                        )
+                        for specie in species
+                    ]
+                ),
+            )
             # print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 1)
+            found = jnp.any(distances < 0.2)
             if found:
                 specie_index = jnp.argmax(distances < 1)
                 species[specie_index].append(genome)
@@ -198,10 +290,18 @@ class GeneticEvolution:
         # adjusted fitness for each species
         for s in range(len(species)):
             specie = species[s]
-            specie_size  = len(specie)
+            specie_size = len(specie)
             for g in range(len(specie)):
                 genome = specie[g]
-                genome = GenomeData(genome.nodes, genome.connections, genome.innovation_count, genome.node_count, genome.key, genome.matrix, fitness=genome.fitness / specie_size)
+                genome = GenomeData(
+                    genome.nodes,
+                    genome.connections,
+                    genome.innovation_count,
+                    genome.node_count,
+                    genome.key,
+                    genome.matrix,
+                    fitness=genome.fitness / specie_size,
+                )
                 specie[g] = genome
 
             # rank the species
@@ -210,7 +310,7 @@ class GeneticEvolution:
 
         return species
 
-    def eval_fitness(self,genome, env):
+    def eval_fitness(self, genome, env):
         reward = 0
         obs = env.reset()
         done = False
@@ -233,10 +333,10 @@ class GeneticEvolution:
             # specie = self.rank_population(specie)
             top_n = max(1, len(specie) // 5)
             new_specie = specie[:top_n]
-            # print("Specie length: ",len(specie))    
+            # print("Specie length: ",len(specie))
             while len(new_specie) < len(specie):
-                parent1_idx = random.randint(0, top_n-1)
-                parent2_idx = random.randint(0, top_n-1)
+                parent1_idx = random.randint(0, top_n - 1)
+                parent2_idx = random.randint(0, top_n - 1)
 
                 parent1 = specie[parent1_idx]
                 parent2 = specie[parent2_idx]
@@ -246,13 +346,15 @@ class GeneticEvolution:
                     child = self.genome.crossover(parent1, parent2)
                 else:
                     child, _ = self.genome.mutate(parent1)
-                
+
                 new_specie.append(child)
-            
+
             new_population.extend(new_specie)
 
         return new_population
 
+    def backward(self, genome, preds, targets):
+        loss = jnp.mean((preds - targets) ** 2)
 
     def train(self, env, num_generations):
         for i in range(num_generations):
@@ -265,23 +367,25 @@ class GeneticEvolution:
 
         return self.population[5]
 
+
 class Policy:
-    def __init__(self, genome, pops):
-        self.genome = genome  
+    def __init__(self, genome, pops, config):
+        self.genome = genome
         self.pops = pops
         self.forward = self._forward
-        n_nodes = jnp.zeros((len(self.pops),1))
+        n_nodes = jnp.zeros((len(self.pops), 1))
+        self.config = config
 
         for i in range(len(self.pops)):
-            n_nodes = n_nodes.at[i,0].set(self.pops[i].nodes.shape[0])
+            n_nodes = n_nodes.at[i, 0].set(self.pops[i].nodes.shape[0])
 
         self.n_nodes = n_nodes
         self.matrices = jnp.array(self.genome.express_all(self.pops, n_nodes))
 
         def _slice_activation(activations, n_nodes):
             """Helper function to slice activations based on n_nodes."""
-            start_idx = n_nodes - 3
-            return jax.lax.dynamic_slice(activations, (jnp.int32(start_idx),), (3,))
+            start_idx = n_nodes - self.config["output_num"]
+            return jax.lax.dynamic_slice(activations, (jnp.int32(start_idx),), (self.config['output_num'],))
 
         self.slice_activation = _slice_activation
 
@@ -290,7 +394,7 @@ class Policy:
         return jax.vmap(self.slice_activation)(activations, self.n_nodes[:, 0])
 
 
-# num_envs = 10
+# num_envs = 100
 # obs_size = 12
 # config = {
 #     "prob_enable": 0.5,
@@ -299,14 +403,20 @@ class Policy:
 #     "prob_add_node": 0.5,
 #     "prob_add_connection": 0.5,
 #     "input_num": obs_size,
-#     "output_num": 3
+#     "output_num": 3,
 # }
+# import time
+
+# start_time = time.time()
 # test_genome = Genome(config=config)
 # evolver = GeneticEvolution(num_envs, test_genome, 12)
 # pops = evolver.ask()
+# # species = evolver.kmediods()
+# end_time = time.time()
+# print("Time: ",end_time - start_time)
+# print("Species: ",species[0][0])
 # genome1 = pops[0]
 # genome2 = pops[1]
 
 # dist = evolver.compatibility_distance(genome1.connections, genome2.connections)
 # print("Distance: ",dist)
-    

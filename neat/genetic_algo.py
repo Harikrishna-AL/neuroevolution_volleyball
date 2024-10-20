@@ -6,7 +6,9 @@ import random
 
 
 class GeneticEvolution:
-    def __init__(self, population_size, genome, obs_size, mutation_rate=0.1, crossover_rate=0.5):
+    def __init__(
+        self, population_size, genome, obs_size, mutation_rate=0.1, crossover_rate=0.5
+    ):
         self.population_size = population_size
         self.genome = genome
         self.mutation_rate = mutation_rate
@@ -19,11 +21,10 @@ class GeneticEvolution:
         # num_batch = len(obs)
         # for i in range(num_batch):
         output = genome.forward(obs)
-        
-        return output
-        
 
-    def eval_fitness(self,genome, env):
+        return output
+
+    def eval_fitness(self, genome, env):
         reward = 0
         obs = env.reset()
         done = False
@@ -41,17 +42,26 @@ class GeneticEvolution:
         return total_reward
 
     def connection_in_parent(self, connection, parent_connections):
-    # Compare the connection with all parent connections using broadcasting
+        # Compare the connection with all parent connections using broadcasting
         return jnp.any(jnp.all(connection == parent_connections, axis=1))
 
-
     def crossover(self, parent1, parent2):
-        child1 = Genome(parent1.nodes.copy(), parent1.connections.copy(), parent1.innovation_count, parent1.node_count)
-        child2 = Genome(parent2.nodes.copy(), parent2.connections.copy(), parent2.innovation_count, parent2.node_count)
+        child1 = Genome(
+            parent1.nodes.copy(),
+            parent1.connections.copy(),
+            parent1.innovation_count,
+            parent1.node_count,
+        )
+        child2 = Genome(
+            parent2.nodes.copy(),
+            parent2.connections.copy(),
+            parent2.innovation_count,
+            parent2.node_count,
+        )
 
         if random.random() < self.cross_rate:
             for connection in parent1.connections:
-                if self.connection_in_parent(connection , parent2.connections):
+                if self.connection_in_parent(connection, parent2.connections):
                     child1.add_connection(connection[0], connection[1], connection[2])
                 else:
                     child1.add_connection(connection[0], connection[1], connection[2])
@@ -73,8 +83,13 @@ class GeneticEvolution:
 
     def evolve(self, env):
         fitnesses = [self.eval_fitness(genome, env=env) for genome in self.population]
-        sorted_population = [x for _, x in sorted(zip(fitnesses, self.population), key=lambda pair: pair[0], reverse=True)]
-        new_population = sorted_population[:self.population_size // 2]
+        sorted_population = [
+            x
+            for _, x in sorted(
+                zip(fitnesses, self.population), key=lambda pair: pair[0], reverse=True
+            )
+        ]
+        new_population = sorted_population[: self.population_size // 2]
 
         while len(new_population) < self.population_size:
             parent1 = random.choice(sorted_population)
@@ -97,8 +112,7 @@ class GeneticEvolution:
 
         return self.population[5]
 
-    
-    
+
 x = Genome()
 algo = GeneticEvolution(100, x, 12)
 print(algo.population.nodes.shape)

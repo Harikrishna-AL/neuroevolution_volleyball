@@ -28,7 +28,7 @@ config = {
     "prob_add_node": 0.5,
     "prob_add_connection": 0.5,
     "input_num": 12,
-    "output_num": 3
+    "output_num": 3,
 }
 gen = Genome(config=config)
 
@@ -36,6 +36,7 @@ evolver = GeneticEvolution(num_envs, gen, env)
 
 frames_gifs = []
 RENDER = True
+
 
 def train(args):
     keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
@@ -47,13 +48,12 @@ def train(args):
         policy = Policy(gen, pops)
         total_rewards = get_rewards(keys, env, policy, num_envs=num_envs)
         evolver.tell(total_rewards)
-        
+
         print(total_rewards)
         print(f"Max reward: {jnp.max(total_rewards)}")
         print(f"Mean reward: {jnp.mean(total_rewards)}")
         print(f"Min reward: {jnp.min(total_rewards)}")
         print("-----------------------------------------")
-        
 
     gen.visualize(pops[0].nodes, pops[0].connections)
     return pops[0]
@@ -75,7 +75,7 @@ def test(best_policy, RENDER=False):
 
         # Render only every 10 steps to reduce load
         if RENDER and step % 10 == 0:
-            frame = env.render(mode='rgb_array')
+            frame = env.render(mode="rgb_array")
             if len(frames) < 100:  # Save only first 100 frames to limit memory use
                 frames.append(frame)
             time.sleep(0.01)  # Optional delay for human-friendly frame rate
@@ -85,16 +85,15 @@ def test(best_policy, RENDER=False):
 
     # Save the gif if rendering was enabled
     if RENDER:
-        imageio.mimsave('slime_volleyball_episode.gif', frames, fps=30)
-    
+        imageio.mimsave("slime_volleyball_episode.gif", frames, fps=30)
+
     print(f"Total reward: {total_reward}")
     return total_reward
 
-if __name__ == "__main__":  
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_generations", type=int, default=200)
     args = parser.parse_args()
     best_net = train(args=args)
     test(best_net)
-
-
