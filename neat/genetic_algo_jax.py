@@ -229,7 +229,7 @@ class GeneticEvolution:
             # Ensure population is in the correct format (list of connections data)
             population_data = jnp.array([extract_data(genome) for genome in population])
             
-            # Compute distances between all genomes and medoids (vectorized)
+            # Compute distances between all genomes and mediods (vectorized)
             distances = vmap(lambda genome_data: vmap(dist_fn, in_axes=(None, 0))(genome_data, mediods))(population_data)
             
             # Find the closest medoid for each genome
@@ -253,7 +253,9 @@ class GeneticEvolution:
         for _ in range(max_iter):
             # Assign clusters (vectorized)
             cluster_indices = assign_clusters(self.population, mediods)
-            clusters = [self.population[cluster_indices == i] for i in range(k)]
+            
+            # Create clusters using JAX-compatible approach
+            clusters = [self.population[jnp.where(cluster_indices == i)[0]] for i in range(k)]
             
             # Update medoids
             new_mediods = update_medoids(clusters, self.population)
@@ -265,6 +267,7 @@ class GeneticEvolution:
             mediods = new_mediods
 
         return clusters
+
 
 
     def compare_genomes(self, genome1, genome2):
