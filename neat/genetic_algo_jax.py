@@ -222,10 +222,16 @@ class GeneticEvolution:
         
         mediods = jnp.array([extract_data(self.population[i]) for i in mediods_indices])
 
+        def dist_fn(genome_data, mediod_data):
+            return self.compatibility_distance(genome_data, mediod_data)
+
         def assign_clusters(population, mediods):
+            # Ensure population is in the correct format (list of connections data)
+            population_data = jnp.array([extract_data(genome) for genome in population])
+            
             # Compute distances between all genomes and medoids (vectorized)
-            dist_fn = lambda genome, mediod: self.compatibility_distance(genome.connections, mediod)
-            distances = vmap(lambda genome: vmap(dist_fn, in_axes=(None, 0))(extract_data(genome), mediods))(population)
+            distances = vmap(lambda genome_data: vmap(dist_fn, in_axes=(None, 0))(genome_data, mediods))(population_data)
+            
             # Find the closest medoid for each genome
             return jnp.argmin(distances, axis=1)
 
