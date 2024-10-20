@@ -264,28 +264,30 @@ class GeneticEvolution:
     def speciate(self):
         species = []
 
-        for genome in self.population:
-            genome_connections = self.get_enabled_connections(genome.connections)
-            distances = self.distance_vmap(
-                genome_connections,
-                jnp.array(
-                    [
-                        manage_specie_shape(
-                            self.get_enabled_connections(specie[0].connections),
-                            genome_connections.shape[0],
-                        )
-                        for specie in species
-                    ]
-                ),
-            )
-            # print("Distances: ",distances)
-            # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 0.2)
-            if found:
-                specie_index = jnp.argmax(distances < 1)
-                species[specie_index].append(genome)
-            else:
-                species.append([genome])
+        # for genome in self.population:
+        #     genome_connections = self.get_enabled_connections(genome.connections)
+        #     distances = self.distance_vmap(
+        #         genome_connections,
+        #         jnp.array(
+        #             [
+        #                 manage_specie_shape(
+        #                     self.get_enabled_connections(specie[0].connections),
+        #                     genome_connections.shape[0],
+        #                 )
+        #                 for specie in species
+        #             ]
+        #         ),
+        #     )
+        #     # print("Distances: ",distances)
+        #     # print("Distances shape: ",distances.shape)
+        #     found = jnp.any(distances < 0.2)
+        #     if found:
+        #         specie_index = jnp.argmax(distances < 1)
+        #         species[specie_index].append(genome)
+        #     else:
+        #         species.append([genome])
+
+        species = self.kmediods()
 
         # adjusted fitness for each species
         for s in range(len(species)):
