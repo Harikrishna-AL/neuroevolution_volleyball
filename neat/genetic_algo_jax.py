@@ -215,12 +215,17 @@ class GeneticEvolution:
     def kmediods(self, k=5, max_iter=100):
         # Initialize medoid indices
         mediods_indices = jax.random.randint(self.keys[0], (k,), 0, self.population_size)
-        mediods = jnp.array([self.population[i] for i in mediods_indices])
+        
+        # Extract numerical representation of medoids (e.g., connection weights)
+        def extract_data(genome):
+            return genome.connections  # Adjust this based on the structure of GenomeData
+        
+        mediods = jnp.array([extract_data(self.population[i]) for i in mediods_indices])
 
         def assign_clusters(population, mediods):
             # Compute distances between all genomes and medoids (vectorized)
-            dist_fn = lambda genome, mediod: self.compatibility_distance(genome.connections, mediod.connections)
-            distances = vmap(lambda genome: vmap(dist_fn, in_axes=(None, 0))(genome, mediods))(population)
+            dist_fn = lambda genome, mediod: self.compatibility_distance(genome.connections, mediod)
+            distances = vmap(lambda genome: vmap(dist_fn, in_axes=(None, 0))(extract_data(genome), mediods))(population)
             # Find the closest medoid for each genome
             return jnp.argmin(distances, axis=1)
 
@@ -230,10 +235,10 @@ class GeneticEvolution:
                 if len(cluster) > 0:
                     # Compute pairwise distances within each cluster
                     dist_fn = lambda genome1, genome2: self.compatibility_distance(genome1.connections, genome2.connections)
-                    pairwise_dist = vmap(lambda genome1: vmap(dist_fn, in_axes=(None, 0))(genome1, cluster))(cluster)
+                    pairwise_dist = vmap(lambda genome1: vmap(dist_fn, in_axes=(None, 0))(extract_data(genome1), cluster))(cluster)
                     # Find the genome with the minimum total distance in the cluster
                     medoid_idx = jnp.argmin(jnp.sum(pairwise_dist, axis=1))
-                    new_mediods.append(cluster[medoid_idx])
+                    new_mediods.append(extract_data(cluster[medoid_idx]))
                 else:
                     # Keep the old medoid if the cluster is empty
                     new_mediods.append(mediods[len(new_mediods)])
@@ -254,6 +259,7 @@ class GeneticEvolution:
             mediods = new_mediods
 
         return clusters
+
 
     def compare_genomes(self, genome1, genome2):
         nodes_check = jnp.all(genome1.nodes == genome2.nodes)
