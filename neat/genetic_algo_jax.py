@@ -272,7 +272,7 @@ class GeneticEvolution:
             new_mediods = update_medoids(clusters, self.population)
             
             # Check for convergence
-            if all(vmap(self.compare_genomes)(jnp.array(new_mediods), jnp.array(mediods))):
+            if all(self.compare_genomes(new_mediods[i], mediods[i]) for i in range(len(new_mediods))):
                 break
 
             mediods = new_mediods
