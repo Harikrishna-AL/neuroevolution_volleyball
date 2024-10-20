@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 import random
+from jax import vmap
 
 
 class GeneticEvolution:
@@ -212,44 +213,42 @@ class GeneticEvolution:
         return connections[connections[:, 4] == 1.0]
 
     def kmediods(self, k=5, max_iter=100):
-        mediods_indices = jax.random.randint(
-            self.keys[0], (k,), 0, self.population_size
-        )
-        mediods = [self.population[i] for i in mediods_indices]
+        # Initialize medoid indices
+        mediods_indices = jax.random.randint(self.keys[0], (k,), 0, self.population_size)
+        mediods = jnp.array([self.population[i] for i in mediods_indices])
 
-        for _ in range(max_iter):
-            clusters = [[] for _ in range(k)]
-            for genome in self.population:
-                distances = [
-                    self.compatibility_distance(genome.connections, mediod.connections)
-                    for mediod in mediods
-                ]
-                cluster_idx = jnp.argmin(jnp.array(distances))
-                clusters[cluster_idx].append(genome)
+        def assign_clusters(population, mediods):
+            # Compute distances between all genomes and medoids (vectorized)
+            dist_fn = lambda genome, mediod: self.compatibility_distance(genome.connections, mediod.connections)
+            distances = vmap(lambda genome: vmap(dist_fn, in_axes=(None, 0))(genome, mediods))(population)
+            # Find the closest medoid for each genome
+            return jnp.argmin(distances, axis=1)
 
+        def update_medoids(clusters, population):
             new_mediods = []
             for cluster in clusters:
                 if len(cluster) > 0:
-                    pairwise_dist = jnp.array(
-                        [
-                            [
-                                self.compatibility_distance(
-                                    genome1.connections, genome2.connections
-                                )
-                                for genome2 in cluster
-                            ]
-                            for genome1 in cluster
-                        ]
-                    )
-                    mdoid_idx = jnp.argmin(jnp.sum(pairwise_dist, axis=1))
-                    new_mediods.append(cluster[mdoid_idx])
-
+                    # Compute pairwise distances within each cluster
+                    dist_fn = lambda genome1, genome2: self.compatibility_distance(genome1.connections, genome2.connections)
+                    pairwise_dist = vmap(lambda genome1: vmap(dist_fn, in_axes=(None, 0))(genome1, cluster))(cluster)
+                    # Find the genome with the minimum total distance in the cluster
+                    medoid_idx = jnp.argmin(jnp.sum(pairwise_dist, axis=1))
+                    new_mediods.append(cluster[medoid_idx])
                 else:
+                    # Keep the old medoid if the cluster is empty
                     new_mediods.append(mediods[len(new_mediods)])
+            return jnp.array(new_mediods)
 
-            if all(
-                [self.compare_genomes(new_mediods[i], mediods[i]) for i in range(k)]
-            ):
+        for _ in range(max_iter):
+            # Assign clusters (vectorized)
+            cluster_indices = assign_clusters(self.population, mediods)
+            clusters = [self.population[cluster_indices == i] for i in range(k)]
+            
+            # Update medoids
+            new_mediods = update_medoids(clusters, self.population)
+            
+            # Check for convergence
+            if jnp.all(vmap(self.compare_genomes)(new_mediods, mediods)):
                 break
 
             mediods = new_mediods
