@@ -255,7 +255,10 @@ class GeneticEvolution:
             cluster_indices = assign_clusters(self.population, mediods)
             
             # Create clusters using JAX-compatible approach
-            clusters = [self.population[jnp.where(cluster_indices == i)[0]] for i in range(k)]
+            clusters = [
+            [self.population[idx] for idx in jnp.where(cluster_indices == i)[0].tolist()]
+            for i in range(k)
+            ]
             
             # Update medoids
             new_mediods = update_medoids(clusters, self.population)
