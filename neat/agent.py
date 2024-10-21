@@ -1,4 +1,5 @@
 from genetic_algo_jax import GeneticEvolution, Policy
+# from neat_src import GeneticEvolution, Policy
 from genome import Genome, GenomeData
 from utils import get_rewards
 
@@ -45,7 +46,7 @@ def train(args):
         print(f"Generation {i+1}")
         keys = jax.random.split(keys[0], num_envs)
         pops = evolver.ask()
-        policy = Policy(gen, pops)
+        policy = Policy(gen, pops, config)
         total_rewards = get_rewards(keys, env, policy, num_envs=num_envs)
         evolver.tell(total_rewards)
 
@@ -69,7 +70,7 @@ def test(best_policy, RENDER=False):
 
     while not done:
         obs = obs.reshape(1, -1)
-        action_values = Policy(gen, [best_policy]).forward(obs)
+        action_values = Policy(gen, [best_policy], config).forward(obs)
         action_values = action_values[0]
         obs, reward, done, info = env.step(action_values)
 

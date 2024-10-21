@@ -1,4 +1,5 @@
-from genetic_algo_jax import GeneticEvolution, Policy
+# from genetic_algo_jax import GeneticEvolution, Policy
+from neat_src import GeneticEvolution, Policy
 from genome import Genome, GenomeData
 
 import json
@@ -79,6 +80,7 @@ def train():
     parser.add_argument("--num_envs", type=int, default=50)
     parser.add_argument("--max_generations", type=int, default=5)
     parser.add_argument("--data", type=int, default=0)
+    parser.add_argument("--batch_size" ,type=int, default=16)
     args = parser.parse_args()
 
     num_envs = args.num_envs
@@ -90,35 +92,55 @@ def train():
     gen = Genome(config=config)
     evolver = GeneticEvolution(num_envs, gen, train_input.shape[1])
 
+    batch_size = args.batch_size
+
     for i in range(max_generations):
         print(f"Generation {i+1}")
 
-        idx = np.random.choice(train_input.shape[0], num_envs)
-        input = train_input[idx]
-        target = train_target[idx]
+        # idx = np.random.choice(train_input.shape[0], num_envs)
+        # input = train_input[idx]
+        # target = train_target[idx]
 
         pops = evolver.ask()
         num_connections = jnp.array([p.connections.shape[0] for p in pops])
         connection_penalty = 0.1
         policy = Policy(gen, pops, config)
-        output = jax.nn.sigmoid(policy.forward(input))
+        rewards_batch = []
+        for b in range(batch_size):
+            idx = np.random.choice(train_input.shape[0], num_envs)
+            input = train_input[idx]
+            target = train_target[idx]
+            output = jax.nn.sigmoid(policy.forward(input))
+            rewards =  - (output - target) ** 2 
+            rewards_batch.append(rewards)
+
+        rewards = jnp.mean(jnp.array(rewards_batch), axis=0)
+        # print(rewards)
+
+
+
+
         # print(output.shape, train_target.shape)
-        rewards =  - (output - target) ** 2 
+        
         # convert rewards to 1d array
-        rewards = jnp.mean(rewards, axis=1) 
+        rewards = jnp.mean(rewards, axis=1)
+        # print(rewards)
+        # rewards = jnp.mean(rewards, axis=1) 
         rewards = rewards * jnp.sqrt(1 + connection_penalty * num_connections)
         # print(rewards)
         evolver.tell(rewards)
 
-        validate(gen, pops[0], test_input, test_target)
+        best_genome = evolver.get_best_genome()
+
+        validate(gen, best_genome, test_input, test_target)
     
         # accuracy = jnp.mean(jnp.round(output) == train_target)
         # accuracy = accuracy * 100
         # mean_error = jnp.mean((output - train_target) ** 2)
 
-        if i % 5==0:
+        if (i + 1) % 5==0:
             #visualize the best policy
-            best_fitness = gen.visualize(pops[0], i)
+            best_fitness = gen.visualize(best_genome, i+1)
             print("Best Fitness: ", best_fitness)
 
 train()

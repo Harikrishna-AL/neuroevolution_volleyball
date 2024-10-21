@@ -10,12 +10,12 @@ import os
 
 @dataclass
 class GenomeData:
-    nodes: jnp.ndarray
-    connections: jnp.ndarray
+    nodes: jnp.asarray
+    connections: jnp.asarray
     innovation_count: int
     node_count: int
-    key: jnp.ndarray
-    matrix: jnp.ndarray
+    key: jnp.asarray
+    matrix: jnp.asarray
     fitness: float = -1.0e6
 
 
@@ -124,9 +124,10 @@ class Genome:
                     subkey, shape=(), minval=0, maxval=15
                 )
                 # activation = get_activation(activation_idx)
-                activation_result = lax.switch(
-                    activation_idx, get_activation(), weighted_sum
-                )
+                # activation_result = lax.switch(
+                #     activation_idx, get_activation(), weighted_sum
+                # )
+                activation_result = jax.nn.relu(weighted_sum)
                 node_activations = node_activations.at[i].set(activation_result)
 
             # output = node_activations[-n_outputs:]
@@ -179,12 +180,24 @@ class Genome:
         def __mutate_add_node(genome: GenomeData):
             key, subkey = jax.random.split(genome.key)
             # genome.key = subkey
-            connection_to_split = genome.connections[
-                jax.random.randint(
+            connection_to_split_idx = jax.random.randint(
                     subkey, shape=(), minval=0, maxval=len(genome.connections)
                 )
-            ]
+            connection_to_split = genome.connections[connection_to_split_idx]
             connection_to_split = connection_to_split.at[4].set(0.0)
+
+            # genome.connections = genome.connections.at[connection_to_split_idx].set(
+            #     connection_to_split
+            # )
+            genome = GenomeData(
+                genome.nodes,
+                genome.connections.at[connection_to_split_idx].set(connection_to_split),
+                genome.innovation_count,
+                genome.node_count,
+                subkey,
+                genome.matrix,
+                genome.fitness,
+            )
 
             new_node_id, genome = self.add_node(genome, subkey)
 
@@ -516,14 +529,12 @@ class Genome:
         #display the fitness of the genome at the top
         plt.title(f"Fitness: {fitness}")
 
-        # plt.show()
-
-        plt.show()
         # make sure the results folder exists
         if not os.path.exists("results"):
             os.makedirs("results")
 
         plt.savefig(f"results/gen_{i}.png")
+        plt.close()
         return fitness
 
 

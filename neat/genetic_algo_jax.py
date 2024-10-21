@@ -74,7 +74,7 @@ class GeneticEvolution:
             # print(self.population)
 
         else:
-            self.population = self.rank_population()
+            # self.population = self.rank_population()
             # TO DO
             self.species = self.speciate()
             self.population = self.evolve()
@@ -281,6 +281,8 @@ class GeneticEvolution:
 
     def compare_genomes(self, genome1, genome2, tolerance=1e-5):
         # Ensure genome1 and genome2 are instances of GenomeData
+        print("Genome1: ",genome1)
+        print("Genome2: ",genome2)
         if not isinstance(genome1, GenomeData) or not isinstance(genome2, GenomeData):
             raise TypeError("Both arguments must be instances of GenomeData.")
 
@@ -321,30 +323,30 @@ class GeneticEvolution:
     def speciate(self):
         species = []
 
-        # for genome in self.population:
-        #     genome_connections = self.get_enabled_connections(genome.connections)
-        #     distances = self.distance_vmap(
-        #         genome_connections,
-        #         jnp.array(
-        #             [
-        #                 manage_specie_shape(
-        #                     self.get_enabled_connections(specie[0].connections),
-        #                     genome_connections.shape[0],
-        #                 )
-        #                 for specie in species
-        #             ]
-        #         ),
-        #     )
-        #     # print("Distances: ",distances)
-        #     # print("Distances shape: ",distances.shape)
-        #     found = jnp.any(distances < 0.2)
-        #     if found:
-        #         specie_index = jnp.argmax(distances < 1)
-        #         species[specie_index].append(genome)
-        #     else:
-        #         species.append([genome])
+        for genome in self.population:
+            genome_connections = self.get_enabled_connections(genome.connections)
+            distances = self.distance_vmap(
+                genome_connections,
+                jnp.array(
+                    [
+                        manage_specie_shape(
+                            self.get_enabled_connections(specie[0].connections),
+                            genome_connections.shape[0],
+                        )
+                        for specie in species
+                    ]
+                ),
+            )
+            # print("Distances: ",distances)
+            # print("Distances shape: ",distances.shape)
+            found = jnp.any(distances < 0.2)
+            if found:
+                specie_index = jnp.argmax(distances < 1)
+                species[specie_index].append(genome)
+            else:
+                species.append([genome])
 
-        species = self.kmediods()
+        # species = self.kmediods()
 
         # adjusted fitness for each species
         for s in range(len(species)):
