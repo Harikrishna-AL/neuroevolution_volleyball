@@ -159,6 +159,11 @@ class GeneticEvolution:
             self.compatibility_threshold *= 0.5
         elif len(species) > self.species_target:
             self.compatibility_threshold *= 2
+
+        #replace the worst performing species with the best performing species
+        species.sort(key=lambda x: sum(genome.fitness for genome in x), reverse=True)
+        # replace the worst performing species with the best performing species
+        species[-1] = species[0]
         
         return species
 
