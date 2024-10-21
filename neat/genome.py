@@ -220,6 +220,7 @@ class Genome:
             out_nodes_select = jnp.where(genome.nodes[:, 1] > 0)[0]
             # genome.key = subkey
             input_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))
+            subkey, _ = jax.random.split(subkey)
             output_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(out_nodes_select))
 
             while input_idx == output_idx:
