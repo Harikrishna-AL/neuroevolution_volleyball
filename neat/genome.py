@@ -222,11 +222,13 @@ class Genome:
             input_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))
             subkey, _ = jax.random.split(subkey)
             output_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(out_nodes_select))
+            
+            # print("Input node: ", input_idx)
+            # print("Output node: ", out_nodes_select[output_idx])
+            #make sure input and output nodes are not the same
+            if input_idx == out_nodes_select[output_idx]:
+                output_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(out_nodes_select))
 
-            while input_idx == output_idx:
-                output_idx = jax.random.randint(
-                    subkey, shape=(), minval=0, maxval=len(out_nodes_select)
-                )
 
             node_input = genome.nodes[input_idx]
             # select nodes of type hidden or output
