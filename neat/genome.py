@@ -217,13 +217,22 @@ class Genome:
         def __mutate_add_connection(genome: GenomeData, weight_range=(-1.0, 1.0)):
             # Sample two nodes
             key, subkey = jax.random.split(genome.key)
+            out_nodes_select = jnp.where(genome.nodes[:, 1] > 0)[0]
             # genome.key = subkey
-            node_input = genome.nodes[
-                jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))
-            ]
-            node_output = genome.nodes[
-                jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))
-            ]
+            input_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(genome.nodes))
+            output_idx = jax.random.randint(subkey, shape=(), minval=0, maxval=len(out_nodes_select))
+
+            while input_idx == output_idx:
+                output_idx = jax.random.randint(
+                    subkey, shape=(), minval=0, maxval=len(out_nodes_select)
+                )
+
+            node_input = genome.nodes[input_idx]
+            # select nodes of type hidden or output
+            
+            node_output = genome.nodes[out_nodes_select[output_idx]]
+            # make sure the nodes are not the same and the output node is not an input node
+
 
             weight = jax.random.uniform(
                 subkey, shape=(), minval=weight_range[0], maxval=weight_range[1]
