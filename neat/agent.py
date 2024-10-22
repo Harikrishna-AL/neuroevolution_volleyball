@@ -50,6 +50,10 @@ def train(args):
         total_rewards = get_rewards(keys, env, policy, num_envs=num_envs)
         evolver.tell(total_rewards)
 
+        if (i + 1) % 5:
+            best_genome = evolver.get_best_genome()
+            gen.visualize(best_genome, i+1) 
+
         print(total_rewards)
         print(f"Max reward: {jnp.max(total_rewards)}")
         print(f"Mean reward: {jnp.mean(total_rewards)}")

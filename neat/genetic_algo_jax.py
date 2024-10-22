@@ -427,6 +427,9 @@ class GeneticEvolution:
             print("\n")
 
         return self.population[5]
+    
+    def get_best_genome(self):
+        return max(self.population, key=lambda x: x.fitness)
 
 
 class Policy:
