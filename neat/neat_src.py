@@ -1,6 +1,6 @@
 from genome import GenomeData, Genome
 
-
+import time
 import jax
 import jax.numpy as jnp
 from jax import lax, vmap
@@ -203,7 +203,7 @@ class GeneticEvolution:
             while len(new_species) < len(species):
                 parent1 = self.tournament_selection(species, adjusted_fitnesses)
                 parent2 = self.tournament_selection(species, adjusted_fitnesses)
-                
+
                 if random.random() < self.cross_rate:
                     child = self.genome.crossover(parent1, parent2)
                 else:
