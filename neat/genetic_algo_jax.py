@@ -337,11 +337,11 @@ class GeneticEvolution:
                     ]
                 ),
             )
-            # print("Distances: ",distances)
+            print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 0.2)
+            found = jnp.any(distances < 0.9)
             if found:
-                specie_index = jnp.argmax(distances < 1)
+                specie_index = jnp.argmax(distances < 0.9)
                 species[specie_index].append(genome)
             else:
                 species.append([genome])

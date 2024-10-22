@@ -50,7 +50,7 @@ def train(args):
         total_rewards = get_rewards(keys, env, policy, num_envs=num_envs)
         evolver.tell(total_rewards)
 
-        if (i + 1) % 5:
+        if (i + 1) % 5==0:
             best_genome = evolver.get_best_genome()
             gen.visualize(best_genome, i+1) 
 
