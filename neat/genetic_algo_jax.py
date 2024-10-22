@@ -337,7 +337,7 @@ class GeneticEvolution:
                     ]
                 ),
             )
-            print("Distances: ",distances)
+            # print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
             found = jnp.any(distances < 0.9)
             if found:
