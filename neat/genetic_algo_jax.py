@@ -371,12 +371,12 @@ class GeneticEvolution:
 
         #replace the worst performing species with the best performing species
         # best_specie = max(species, key=lambda x: sum([genome.fitness for genome in x]))
-        species.sort(key=lambda x: sum([genome.fitness for genome in x]), reverse=True)
-        for i in range(-1, -1 * len(species), -1):
-            species[i] = species[0]
+        # species.sort(key=lambda x: sum([genome.fitness for genome in x]), reverse=True)
+        # for i in range(-1, -1 * len(species), -1):
+        #     species[i] = species[0]
 
-            if sum([len(s) for s in species]) > self.population_size:
-                break
+        #     if sum([len(s) for s in species]) > self.population_size:
+        #         break
 
         return species
 
