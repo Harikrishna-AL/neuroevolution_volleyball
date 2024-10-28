@@ -23,6 +23,7 @@ class GeneticEvolution:
         self.rewards = []
 
         self.distance_vmap = jax.vmap(self.compatibility_distance, in_axes=(None, 0))
+        self.distance_threshold = 0.95
 
     import numpy as np
 
@@ -339,9 +340,9 @@ class GeneticEvolution:
             )
             print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 0.95)
+            found = jnp.any(distances < self.distance_threshold)
             if found:
-                specie_index = jnp.argmax(distances < 0.95)
+                specie_index = jnp.argmax(distances < self.distance_threshold)
                 species[specie_index].append(genome)
             else:
                 species.append([genome])
@@ -377,6 +378,12 @@ class GeneticEvolution:
 
         #     if sum([len(s) for s in species]) > self.population_size:
         #         break
+
+        #adjust the distance threshold based on the number of species. do it such that the number of species remains roughly around 5
+        if len(species) < 5:
+            self.distance_threshold -= 0.1
+        else:
+            self.distance_threshold += 0.1
 
         return species
 
