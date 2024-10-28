@@ -79,7 +79,7 @@ class GeneticEvolution:
             self.species = self.speciate()
             self.population = self.evolve()
 
-        return self.rank_population()
+        return self.population
 
     def tell(self, rewards):
         self.rewards = rewards
@@ -339,9 +339,9 @@ class GeneticEvolution:
             )
             # print("Distances: ",distances)
             # print("Distances shape: ",distances.shape)
-            found = jnp.any(distances < 0.9)
+            found = jnp.any(distances < 0.8)
             if found:
-                specie_index = jnp.argmax(distances < 0.9)
+                specie_index = jnp.argmax(distances < 0.8)
                 species[specie_index].append(genome)
             else:
                 species.append([genome])
@@ -369,6 +369,15 @@ class GeneticEvolution:
             specie = self.rank(specie)
             species[s] = specie
 
+        #replace the worst performing species with the best performing species
+        # best_specie = max(species, key=lambda x: sum([genome.fitness for genome in x]))
+        species.sort(key=lambda x: sum([genome.fitness for genome in x]), reverse=True)
+        for i in range(-1, -1 * len(species), -1):
+            species[i] = species[0]
+
+            if sum([len(s) for s in species]) > self.population_size:
+                break
+
         return species
 
     def eval_fitness(self, genome, env):
@@ -394,7 +403,7 @@ class GeneticEvolution:
             # specie = self.rank_population(specie)
             top_n = max(1, len(specie) // 5)
             new_specie = specie[:top_n]
-            # print("Specie length: ",len(specie))
+            print("Specie length: ",len(specie))
             while len(new_specie) < len(specie):
                 parent1_idx = random.randint(0, top_n - 1)
                 parent2_idx = random.randint(0, top_n - 1)
@@ -411,6 +420,9 @@ class GeneticEvolution:
                 new_specie.append(child)
 
             new_population.extend(new_specie)
+
+        # return strictly with population size
+        new_population = new_population[: self.population_size]
 
         return new_population
 
@@ -430,7 +442,6 @@ class GeneticEvolution:
     
     def get_best_genome(self):
         return max(self.population, key=lambda x: x.fitness)
-
 
 class Policy:
     def __init__(self, genome, pops, config):

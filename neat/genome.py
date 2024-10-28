@@ -416,7 +416,6 @@ class Genome:
     def crossover(self, parent1: GenomeData, parent2: GenomeData):
         aConn = parent1.connections.copy()[:, 3]
         bConn = parent2.connections.copy()[:, 3]
-        # child = GenomeData(parent1.nodes.copy(), parent1.connections.copy(), parent1.innovation_count, parent1.node_count, parent1.key, parent1.matrix.copy())
         matching, g1, g2 = jnp.intersect1d(aConn, bConn, return_indices=True)
 
         key, subkey = jax.random.split(parent1.key)
@@ -425,16 +424,9 @@ class Genome:
         bProb = 0.5
         bGenes = jax.random.bernoulli(subkey, p=bProb, shape=(len(matching),))
 
-        # child.connections.at[g1[bGenes[0]], 2] = parent2.connections[g2[bGenes[0]], 2]
-        # print("Genes: ", g1[bGenes])
-        # print("Genes2: ", g2[bGenes])
         cross_connections = parent1.connections.at[g1[bGenes], 2].set(
             parent2.connections[g2[bGenes], 2]
         )
-        # update the matrix
-        # batch_nodes = parent1.nodes.unsquzze(0)
-
-        # child_matrix = self.express(parent1.nodes.unsqueeze(0), cross_connections.unsqueeze(0))
 
         return GenomeData(
             parent1.nodes.copy(),

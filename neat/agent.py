@@ -30,10 +30,12 @@ config = {
     "prob_add_connection": 0.5,
     "input_num": 12,
     "output_num": 3,
+    "mutation_rate": 0.1,
+    "crossover_rate": 0.1,
 }
 gen = Genome(config=config)
 
-evolver = GeneticEvolution(num_envs, gen, env)
+evolver = GeneticEvolution(num_envs, gen, env, mutation_rate=config['mutation_rate'], crossover_rate=config['crossover_rate'])
 
 frames_gifs = []
 RENDER = True
