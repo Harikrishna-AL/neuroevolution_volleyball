@@ -380,10 +380,12 @@ class GeneticEvolution:
         #         break
 
         #adjust the distance threshold based on the number of species. do it such that the number of species remains roughly around 5
-        if len(species) < 5:
-            self.distance_threshold -= 0.1
-        else:
-            self.distance_threshold += 0.1
+        # if len(species) < 5:
+        #     self.distance_threshold -= 0.1
+        # else:
+        #     self.distance_threshold += 0.1
+
+        self.distance_threshold -= 0.1
 
         return species
 
